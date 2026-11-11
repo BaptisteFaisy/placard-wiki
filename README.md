@@ -45,7 +45,7 @@ cible — voir `docs/ARCHITECTURE.md`).
 | `packages/ritual` | Tourner (attestation humaine) → caviarder (diff, `asUser()`) → purger (ou le dire) → empêcher → vérifier ; certificat |
 | `packages/forge-app` | L'app Forge : manifeste, résolveurs, déclencheurs, SQL, outils MCP, agent Rovo, écrans |
 | `packages/demo-space` | Espace de démonstration semé par script (la démo **et** l'oracle de test) |
-| `skills/before-sharing-a-page` | Skill ouvert pour les agents qui écrivent dans Confluence |
+| `packages/forge-app/skills/before-sharing-a-page` | Skill ouvert pour les agents qui écrivent dans Confluence |
 
 ## Développement
 
