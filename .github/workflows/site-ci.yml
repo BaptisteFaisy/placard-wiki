@@ -1,0 +1,79 @@
+name: Site CI
+
+# Contrôle du site de démonstration sur PR : typecheck (tsc --noEmit) puis build.
+# Mêmes garde-fous que la CI principale (budget 5 min, sous-module, TMPDIR sur
+# disque, Node du worker, pnpm via corepack). Le check publié s'appelle `site-ci`
+# (nom du job) — à exiger par le ruleset de `main` si besoin.
+
+on:
+  pull_request:
+    paths:
+      - 'site/**'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/pages.yml'
+      - '.github/workflows/site-ci.yml'
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: site-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  site-ci:
+    name: site-ci
+    runs-on: [self-hosted, linux, x64, placard-wiki-worker]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          clean: false
+
+      - name: Sous-module vendor/placard (épinglé, profondeur 1)
+        shell: bash
+        run: git submodule update --init --depth 1
+
+      - name: Nettoyage du workspace
+        shell: bash
+        run: git clean -fdx -e node_modules
+
+      - name: Temporaires sur le disque (jamais dans le tmpfs /tmp)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.cache/ci-tmp"
+          echo "TMPDIR=$HOME/.cache/ci-tmp" >> "$GITHUB_ENV"
+
+      - name: Node du worker (hors PATH par défaut)
+        shell: bash
+        run: |
+          set -euo pipefail
+          NODE_BIN="$HOME/.local/node/bin"
+          if [ ! -x "$NODE_BIN/node" ]; then
+            echo "::error::Node introuvable dans $NODE_BIN"
+            exit 1
+          fi
+          echo "$NODE_BIN" >> "$GITHUB_PATH"
+          "$NODE_BIN/node" --version
+
+      - name: Dépendances (pnpm via corepack, store persistant)
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable --install-directory "$HOME/.local/node/bin" >/dev/null 2>&1 || true
+          corepack prepare pnpm@9.15.9 --activate >/dev/null
+          pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Types du site (tsc --noEmit)
+        shell: bash
+        run: pnpm --filter @placard-wiki/site typecheck
+
+      - name: Build du site
+        shell: bash
+        run: pnpm --filter @placard-wiki/site build
