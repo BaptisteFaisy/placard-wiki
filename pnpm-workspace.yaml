@@ -1,5 +1,7 @@
 packages:
   - 'packages/*'
+  # Site de démonstration public (GitHub Pages) : statique, sans backend.
+  - 'site'
   # Réemploi de placard (Git) : le sous-module vendor/placard est la seule
   # source de vérité — jamais de copie (cahier des charges §21). La forme
   # recommandée à terme est la publication npm de @placard/detectors,
