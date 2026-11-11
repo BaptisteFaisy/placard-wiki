@@ -1,0 +1,94 @@
+name: Pages
+
+# Déploiement du site de démonstration public sur GitHub Pages.
+# Statique : build Vite du paquet @placard-wiki/site, artefact site/dist.
+# Budget : règle user (5 minutes maximum par job). Les runners self-hosted
+# n'ont pas Node sur le PATH par défaut : il est installé pour l'utilisateur
+# du runner dans ~/.local/node (voir ci.yml).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Un seul déploiement Pages à la fois ; on n'annulle pas un déploiement en cours.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: build
+    runs-on: [self-hosted, linux, x64, placard-wiki-worker]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          clean: false
+
+      - name: Sous-module vendor/placard (épinglé, profondeur 1)
+        shell: bash
+        run: git submodule update --init --depth 1
+
+      - name: Nettoyage du workspace
+        shell: bash
+        run: git clean -fdx -e node_modules
+
+      - name: Temporaires sur le disque (jamais dans le tmpfs /tmp)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.cache/ci-tmp"
+          echo "TMPDIR=$HOME/.cache/ci-tmp" >> "$GITHUB_ENV"
+
+      - name: Node du worker (hors PATH par défaut)
+        shell: bash
+        run: |
+          set -euo pipefail
+          NODE_BIN="$HOME/.local/node/bin"
+          if [ ! -x "$NODE_BIN/node" ]; then
+            echo "::error::Node introuvable dans $NODE_BIN"
+            exit 1
+          fi
+          echo "$NODE_BIN" >> "$GITHUB_PATH"
+          "$NODE_BIN/node" --version
+
+      - name: Dépendances (pnpm via corepack, store persistant)
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable --install-directory "$HOME/.local/node/bin" >/dev/null 2>&1 || true
+          corepack prepare pnpm@9.15.9 --activate >/dev/null
+          pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Build du site
+        shell: bash
+        run: pnpm --filter @placard-wiki/site build
+
+      - name: Configurer Pages
+        uses: actions/configure-pages@v5
+
+      - name: Téléverser l'artefact Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/dist
+
+  deploy:
+    name: deploy
+    needs: build
+    runs-on: [self-hosted, linux, x64, placard-wiki-worker]
+    timeout-minutes: 5
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Déployer sur GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

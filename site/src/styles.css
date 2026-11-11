@@ -1,0 +1,473 @@
+/* Feuille de style du site de démonstration — WCAG AA :
+   - fonds pleins et contrastés partout (le décor reste derrière, §10) ;
+   - focus clavier toujours visible (outline épais, jamais supprimé) ;
+   - aucune information portée par la seule couleur (icônes + texte). */
+
+:root {
+  --bg: #fdfdfb;
+  --fg: #14161f;
+  --muted: #4c5164;
+  --line: #c9ccd6;
+  --accent: #6d1a1a;
+  --accent-fg: #ffffff;
+  --panel: #ffffff;
+  --danger-low: #1f5e23;
+  --danger-mid: #7a4a00;
+  --danger-high: #a31616;
+  --ok: #1f5e23;
+  --focus: #0b57d0;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+#root {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem 3rem;
+}
+
+a {
+  color: var(--focus);
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ---- En-tête et navigation par onglets ---- */
+
+header.app-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 1rem 0 0.5rem;
+  border-bottom: 2px solid var(--fg);
+}
+
+header.app-header h1 {
+  font-size: 1.35rem;
+  margin: 0;
+}
+
+nav.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding: 0.5rem 0 0;
+}
+
+nav.tabs button {
+  font: inherit;
+  padding: 0.5rem 0.9rem;
+  border: 2px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background: #e8e9ee;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+nav.tabs button[aria-selected='true'] {
+  background: var(--panel);
+  border-color: var(--fg);
+  font-weight: 700;
+}
+
+nav.tabs button:hover {
+  background: #dcdde5;
+}
+
+/* ---- Bandeau permanent « données synthétiques » ---- */
+
+.synthetic-banner {
+  margin: 0.75rem 0;
+  padding: 0.5rem 0.75rem;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 700;
+  border-radius: 6px;
+  text-align: center;
+}
+
+/* ---- Langue ---- */
+
+.lang-toggle {
+  margin-left: auto;
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.lang-toggle button {
+  font: inherit;
+  padding: 0.3rem 0.7rem;
+  border: 2px solid var(--fg);
+  background: var(--panel);
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.lang-toggle button[aria-pressed='true'] {
+  background: var(--fg);
+  color: var(--bg);
+  font-weight: 700;
+}
+
+/* ---- Panneaux génériques ---- */
+
+section.screen {
+  background: var(--panel);
+  border: 2px solid var(--fg);
+  border-radius: 0 8px 8px 8px;
+  padding: 1rem 1.25rem;
+}
+
+section.screen h2 {
+  margin-top: 0.25rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 0.85rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--fg);
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--panel);
+}
+
+.badge.danger-high {
+  background: #fde7e7;
+  color: var(--danger-high);
+  border-color: var(--danger-high);
+}
+
+.badge.danger-mid {
+  background: #fdf1de;
+  color: var(--danger-mid);
+  border-color: var(--danger-mid);
+}
+
+.badge.danger-low {
+  background: #e6f2e7;
+  color: var(--danger-low);
+  border-color: var(--danger-low);
+}
+
+.badge.state {
+  background: #e9ecf5;
+}
+
+code,
+.preview {
+  font-family: ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background: #eef0f4;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+}
+
+/* ---- Registre : tableau triable / filtrable ---- */
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+  margin-bottom: 0.75rem;
+}
+
+.filter-bar label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.filter-bar select,
+.filter-bar input {
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+  border: 2px solid var(--fg);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--fg);
+}
+
+table.registry {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+table.registry caption {
+  text-align: left;
+  padding-bottom: 0.4rem;
+  color: var(--muted);
+}
+
+table.registry th,
+table.registry td {
+  border: 1px solid var(--line);
+  padding: 0.4rem 0.55rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+table.registry th {
+  background: #eceef4;
+}
+
+table.registry th button.sort-btn {
+  font: inherit;
+  font-weight: 700;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--fg);
+  text-decoration: underline dotted;
+}
+
+table.registry tbody tr:nth-child(even) {
+  background: #f5f6f9;
+}
+
+table.registry tbody tr:hover {
+  background: #e9ecf5;
+}
+
+button.link-btn {
+  font: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--focus);
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* ---- Boutons d'action ---- */
+
+button.action {
+  font: inherit;
+  padding: 0.45rem 1rem;
+  border: 2px solid var(--fg);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--fg);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button.action.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+
+button.action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ---- Bâtiment (SVG) : fond sombre, décor derrière, contraste AA ---- */
+
+.building-wrap {
+  background: #15171f;
+  border: 2px solid var(--fg);
+  border-radius: 8px;
+  padding: 0.5rem;
+}
+
+.building-wrap svg text {
+  font-family: system-ui, sans-serif;
+}
+
+.building-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  list-style: none;
+  padding: 0;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.legend svg {
+  flex: none;
+}
+
+/* ---- Fiche foyer / termes du score ---- */
+
+dl.terms {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.35rem 1rem;
+  margin: 0.5rem 0;
+}
+
+dl.terms dt {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+dl.terms dd {
+  margin: 0;
+}
+
+.locations {
+  list-style: none;
+  margin: 0.5rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.locations li {
+  border: 1.5px solid var(--line);
+  border-left: 5px solid var(--accent);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  background: #fafafc;
+}
+
+/* ---- Rituel ---- */
+
+ol.ritual {
+  list-style: none;
+  counter-reset: step;
+  margin: 0.5rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+ol.ritual > li {
+  counter-increment: step;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  background: #fafafc;
+}
+
+ol.ritual > li::before {
+  content: counter(step) '. ';
+  font-weight: 700;
+}
+
+ol.ritual > li[data-state='done'] {
+  border-color: var(--ok);
+  background: #edf6ee;
+}
+
+ol.ritual > li[data-state='locked'] {
+  opacity: 0.75;
+}
+
+ol.ritual > li[data-state='impossible'] {
+  border-color: var(--danger-mid);
+  background: #fdf6e9;
+}
+
+.refusal {
+  border: 2px solid var(--danger-high);
+  background: #fdecec;
+  color: #6e0f0f;
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  font-weight: 600;
+  margin: 0.5rem 0;
+}
+
+/* ---- Certificat ---- */
+
+.certificate {
+  border: 3px double var(--accent);
+  border-radius: 8px;
+  padding: 1.25rem;
+  background: #fffdf7;
+}
+
+.certificate h3 {
+  margin-top: 0;
+  color: var(--accent);
+}
+
+.certificate table {
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+}
+
+.certificate td,
+.certificate th {
+  border: 1px solid var(--line);
+  padding: 0.3rem 0.6rem;
+  text-align: left;
+}
+
+/* ---- Accueil ---- */
+
+.pitch {
+  font-size: 1.3rem;
+  font-weight: 700;
+  border-left: 6px solid var(--accent);
+  padding: 0.5rem 1rem;
+  margin: 1rem 0;
+  background: #f6f1f1;
+}
+
+.does-not {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.does-not ul {
+  margin: 0.25rem 0;
+  padding-left: 1.2rem;
+}
+
+.does-not h3 {
+  margin-bottom: 0.25rem;
+}
