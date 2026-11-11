@@ -1,15 +1,33 @@
 /**
  * Le rituel wiki (§9) : tourner → caviarder → purger → empêcher → vérifier,
- * avec ses verrous. La séquence et son verrouillage (rotation avant purge)
- * viennent de @placard/ritual — jamais recopiés.
+ * avec ses verrous. La séquence et son verrouillage s'inspirent de
+ * `@placard/ritual` (Git) — adaptés au wiki, jamais recopiés (cahier §21) :
  *
- * Verrou central : l'étape 2 (caviarder) est bloquée tant que la rotation n'a
- * pas été **attestée par une personne** — jamais par l'app, jamais par un
- * agent. L'attestation est un fait horodaté avec lien vers la preuve.
+ * - l'attestation de rotation est humaine et refusée à un agent (§17, §25.8) ;
+ * - le verrou PW-09 bloque le caviardage tant qu'aucune attestation humaine
+ *   n'existe (§25.7) — variante wiki du verrou d'ordre PLA-F-23 ;
+ * - les diffs de caviardage sont masqués (PW-04/PW-10) : cette logique ne
+ *   reçoit jamais la valeur brute, seulement des positions dans le texte ;
+ * - la purge d'historique est l'étape honnête (§9, §25.10) : liste exacte si
+ *   c'est possible, impossibilité écrite + demande groupée à l'administrateur
+ *   sinon, et le foyer reste ouvert — comme `@placard/ritual` refuse de
+ *   réécrire l'historique lui-même (PLA-F-24) ;
+ * - le certificat reprend la discipline de celui de `@placard/ritual`
+ *   (compteurs + angles morts déclarés + intégrité par empreinte), en donnée
+ *   du registre signée HMAC-SHA-256 sur JSON canonique (§25.16).
  *
- * Squelette — le lot « ritual » implémente : attestation, diff de caviardage
- * (masqué), application asUser, demande de purge, ticket Jira, sceau de cire.
+ * Tout est logique pure ; les effets de bord passent par des ports
+ * injectables (`ports.ts`) que le résolveur Forge implémente.
  */
 
+export * from './ports.js';
+export * from './attestation.js';
+export * from './lock.js';
+export * from './redaction.js';
+export * from './purge.js';
+export * from './ribbon.js';
+export * from './certificate.js';
+export * from './jira.js';
+
 export const PACKAGE_NAME = '@placard-wiki/ritual';
-export const PACKAGE_STATUS = 'skeleton' as const;
+export const PACKAGE_STATUS = 'implemented' as const;
