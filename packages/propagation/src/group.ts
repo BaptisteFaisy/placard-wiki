@@ -147,6 +147,44 @@ function fusionner(
   };
 }
 
+/** Construit (ou fusionne) le foyer d’un paquet de détections de même empreinte. */
+function foyerDepuisPaquet(
+  fingerprint: string,
+  paquet: readonly WikiDetection[],
+  pagesParId: ReadonlyMap<string, WikiPageMeta>,
+  existant: Foyer | undefined,
+): Foyer {
+  const foyerId = foyerIdOf(fingerprint);
+  const vus = new Map<string, FoyerLocation>();
+  for (const d of paquet) {
+    const loc = locationDe(d, foyerId, pagesParId);
+    const precedent = vus.get(loc.id);
+    // Dédup : à clé égale, la détection la plus récente l'emporte.
+    if (precedent === undefined || loc.detectedAt > precedent.detectedAt) vus.set(loc.id, loc);
+  }
+  const locations = [...vus.values()].sort(compareLocations);
+  const dates = paquet.map((d) => d.detectedAt);
+  const firstSeenAt = dates.reduce((a, b) => (a < b ? a : b));
+  const lastSeenAt = dates.reduce((a, b) => (a > b ? a : b));
+  if (existant !== undefined) return fusionner(existant, locations, firstSeenAt, lastSeenAt);
+
+  const premier = paquet[0];
+  if (premier === undefined) throw new Error('foyerDepuisPaquet : paquet vide');
+  const score = scoreInitial(premier.family);
+  return {
+    id: foyerId,
+    fingerprint,
+    family: premier.family,
+    ...score,
+    state: 'open',
+    firstSeenAt,
+    lastSeenAt,
+    locations,
+    primaryPageId: primaryPageDe(locations),
+    spaceKey: undefined,
+  };
+}
+
 /**
  * Regroupe les détections en foyers : une empreinte = un foyer, N
  * emplacements (§11). Les foyers existants sont mis à jour (état de
@@ -174,39 +212,7 @@ export function groupIntoFoyers(
 
   const foyers: Foyer[] = [];
   for (const [fingerprint, paquet] of paquets) {
-    const foyerId = foyerIdOf(fingerprint);
-    const vus = new Map<string, FoyerLocation>();
-    for (const d of paquet) {
-      const loc = locationDe(d, foyerId, pagesParId);
-      const precedent = vus.get(loc.id);
-      // Dédup : à clé égale, la détection la plus récente l'emporte.
-      if (precedent === undefined || loc.detectedAt > precedent.detectedAt) vus.set(loc.id, loc);
-    }
-    const locations = [...vus.values()].sort(compareLocations);
-    const dates = paquet.map((d) => d.detectedAt);
-    const firstSeenAt = dates.reduce((a, b) => (a < b ? a : b));
-    const lastSeenAt = dates.reduce((a, b) => (a > b ? a : b));
-    const premier = paquet[0];
-    if (premier === undefined) continue;
-
-    const existant = existants.get(fingerprint);
-    if (existant !== undefined) {
-      foyers.push(fusionner(existant, locations, firstSeenAt, lastSeenAt));
-      continue;
-    }
-    const score = scoreInitial(premier.family);
-    foyers.push({
-      id: foyerId,
-      fingerprint,
-      family: premier.family,
-      ...score,
-      state: 'open',
-      firstSeenAt,
-      lastSeenAt,
-      locations,
-      primaryPageId: primaryPageDe(locations),
-      spaceKey: undefined,
-    });
+    foyers.push(foyerDepuisPaquet(fingerprint, paquet, pagesParId, existants.get(fingerprint)));
   }
   return foyers;
 }

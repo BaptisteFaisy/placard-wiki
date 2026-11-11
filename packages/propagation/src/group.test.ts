@@ -95,7 +95,7 @@ describe('groupIntoFoyers — une empreinte, plusieurs emplacements (§11)', () 
     expect(foyers[0]!.state).toBe('open'); // la corbeille est un résidu déclaré
   });
 
-  it('dédup : la même détection vue deux fois ne fait qu'un emplacement', () => {
+  it('dédup : la même détection vue deux fois ne fait qu’un emplacement', () => {
     const cle = fausseCleAws('recette-dedup');
     const base = makeDetection({ fingerprint: empreinteDe(cle), pageId: 'p-runbook' });
     const foyers = groupIntoFoyers([base, { ...base }]);
