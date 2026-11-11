@@ -60,11 +60,18 @@ function step(foyerId: string, name: string, state: RitualStepState['state'], no
   return { foyerId, step: name, state, ...(note !== undefined ? { note } : {}) };
 }
 
+/** États qui impliquent un caviardage déjà fait. */
+const POST_REDACTION_STATES = new Set<string>([
+  'redacted',
+  'purge-requested',
+  'purged',
+  'purge-impossible',
+  'sealed',
+]);
+
 function redactStepState(foyer: Foyer, unlocked: boolean): RitualStepState {
   if (!unlocked) return step(foyer.id, 'redact', 'locked', REDACT_LOCK_REASON);
-  const done = foyer.state !== 'rotation-attested' && POST_ROTATION_STATES.has(foyer.state) && foyer.state !== 'redacted'
-    ? false
-    : foyer.state === 'redacted' || foyer.state === 'sealed';
+  const done = POST_REDACTION_STATES.has(foyer.state);
   return step(foyer.id, 'redact', done ? 'done' : 'pending');
 }
 
@@ -92,7 +99,7 @@ export function ritualStepStates(foyer: Foyer, attestation?: RotationAttestation
     purge,
     step(foyer.id, 'prevent', 'pending'),
     step(foyer.id, 'verify', foyer.state === 'sealed' ? 'done' : 'pending'),
-  ].map((s) => ({ ...s, step: s.step }));
+  ];
 }
 
 /** Vérifie que le plan couvre bien les cinq étapes, dans l'ordre du domaine. */
