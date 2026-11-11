@@ -49,22 +49,21 @@ function matchesCql(page: ConfluencePage, cql: string): boolean {
   return true;
 }
 
-/** Fabrique le client mémoire. Même contrat que le client HTTP — interchangeable. */
-export function createFixtureClient(data: FixtureData): ConfluenceClient {
+type ContentMethods = Pick<ConfluenceClient, 'getPage' | 'listVersions' | 'getVersionContent' | 'listComments' | 'listAttachments'>;
+type FileMethods = Pick<ConfluenceClient, 'downloadAttachment' | 'getSpaceDescription' | 'listTemplates'>;
+type AccessMethods = Pick<ConfluenceClient, 'searchCql' | 'getRestrictions' | 'getSpacePermissions' | 'getSharingState'>;
+
+/** Gîtes 1, 2, 4 et 6 — page, versions, commentaires, pièces jointes (métadonnées). */
+function contentMethods(data: FixtureData): ContentMethods {
   const pages = new Map(data.pages.map((page) => [page.id, page]));
-
-  function needPage(pageId: string): ConfluencePage {
-    const page = pages.get(pageId);
-    if (!page) throw new Error(`fixture : page ${pageId} introuvable`);
-    return page;
-  }
-
   return {
     async getPage(pageId) {
-      return needPage(pageId);
+      const page = pages.get(pageId);
+      if (!page) throw new Error(`fixture : page ${pageId} introuvable`);
+      return page;
     },
     async listVersions(pageId): Promise<VersionSummary[]> {
-      return (data.versions?.[pageId] ?? []).map((v) => ({ number: v.number, when: '', message: undefined }));
+      return (data.versions?.[pageId] ?? []).map((v) => ({ number: v.number, when: '' }));
     },
     async getVersionContent(pageId, versionNumber): Promise<VersionContent> {
       const found = (data.versions?.[pageId] ?? []).find((v) => v.number === versionNumber);
@@ -77,6 +76,12 @@ export function createFixtureClient(data: FixtureData): ConfluenceClient {
     async listAttachments(pageId) {
       return data.attachments?.[pageId] ?? [];
     },
+  };
+}
+
+/** Gîtes 3, 5 et 7 — téléchargement borné, modèles, description d'espace. */
+function fileMethods(data: FixtureData): FileMethods {
+  return {
     // Téléchargement borné, avec les mêmes raisons de non-lecture que le réel.
     async downloadAttachment(pageId, attachmentId, maxBytes): Promise<AttachmentDownload> {
       const meta = (data.attachments?.[pageId] ?? []).find((a) => a.id === attachmentId);
@@ -98,10 +103,16 @@ export function createFixtureClient(data: FixtureData): ConfluenceClient {
       if (!space) throw new Error(`fixture : espace ${spaceKey} introuvable`);
       return space;
     },
-    async listTemplates(spaceKey) {
+    async listTemplates(spaceKey): Promise<TemplateMeta[]> {
       const all = data.templates ?? [];
       return spaceKey ? all.filter((t) => t.spaceKey === spaceKey) : all;
     },
+  };
+}
+
+/** CQL, restrictions, permissions, partage — même hypothèse conservatrice (§22). */
+function accessMethods(data: FixtureData): AccessMethods {
+  return {
     async searchCql(cql, start, limit): Promise<CqlResultPage> {
       const matched = data.pages
         .filter((page) => matchesCql(page, cql))
@@ -122,7 +133,6 @@ export function createFixtureClient(data: FixtureData): ConfluenceClient {
     async getSpacePermissions(spaceKey) {
       return data.permissions?.[spaceKey] ?? [];
     },
-    // Même hypothèse conservatrice que le client réel (§22).
     async getSharingState(): Promise<SharingState> {
       return {
         anyoneWithLink: 'unknown',
@@ -130,4 +140,9 @@ export function createFixtureClient(data: FixtureData): ConfluenceClient {
       };
     },
   };
+}
+
+/** Fabrique le client mémoire. Même contrat que le client HTTP — interchangeable. */
+export function createFixtureClient(data: FixtureData): ConfluenceClient {
+  return { ...contentMethods(data), ...fileMethods(data), ...accessMethods(data) };
 }
