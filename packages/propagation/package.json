@@ -1,0 +1,15 @@
+{
+  "name": "@placard-wiki/propagation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@placard-wiki/domain": "workspace:*",
+    "@placard/core": "workspace:*"
+  }
+}

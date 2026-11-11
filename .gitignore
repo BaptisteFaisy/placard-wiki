@@ -1,0 +1,25 @@
+# Dépendances et builds
+node_modules/
+dist/
+build/
+.forge/
+*.tsbuildinfo
+
+# Couverture de tests
+coverage/
+
+# Environnement et secrets — jamais de valeur dans le dépôt
+.env
+.env.*
+!.env.example
+
+# Éditeurs et OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Journaux
+*.log
+npm-debug.log*
+pnpm-debug.log*

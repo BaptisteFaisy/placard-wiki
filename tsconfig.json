@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": false,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@placard/core": ["vendor/placard/packages/core/src/index.ts"],
+      "@placard/detectors": ["vendor/placard/packages/detectors/src/index.ts"],
+      "@placard/analysis": ["vendor/placard/packages/analysis/src/index.ts"],
+      "@placard/ritual": ["vendor/placard/packages/ritual/src/index.ts"],
+      "@placard-wiki/domain": ["packages/domain/src/index.ts"],
+      "@placard-wiki/wiki-source": ["packages/wiki-source/src/index.ts"],
+      "@placard-wiki/detectors": ["packages/detectors/src/index.ts"],
+      "@placard-wiki/exposure": ["packages/exposure/src/index.ts"],
+      "@placard-wiki/propagation": ["packages/propagation/src/index.ts"],
+      "@placard-wiki/ritual": ["packages/ritual/src/index.ts"],
+      "@placard-wiki/forge-app": ["packages/forge-app/src/index.ts"],
+      "@placard-wiki/demo-space": ["packages/demo-space/src/index.ts"]
+    }
+  },
+  "include": ["packages/*/src/**/*.ts", "packages/*/src/**/*.tsx"],
+  "exclude": ["node_modules", "vendor", "**/dist"]
+}

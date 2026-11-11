@@ -1,0 +1,502 @@
+# Placard du wiki — app Forge pour Confluence.
+# Cahier des charges : §19 (architecture), §17 (outils MCP, agent, skill).
+#
+# Convention : un module = une fonction ; les treize outils MCP du §17 ont
+# chacun leur `action` et leur `function`, pour qu'un agent puisse les appeler
+# un par un (et qu'une automatisation n'appelle que des verbes GET).
+#
+# `app.id` est ajouté par `forge create` — voir docs/VALIDATION-22.md.
+# Les noms d'événements, de scopes et de modules marqués « à valider » passent
+# par `forge lint` et le prototype de la semaine 1 avant d'être tenus pour vrais.
+
+app:
+  runtime:
+    name: nodejs22.x
+  licensing:
+    enabled: false
+
+modules:
+  # ------------------------------------------------------------------ fonctions
+  function:
+    # Un seul résolveur pour tous les écrans (contrat : @placard-wiki/domain bridge).
+    - key: resolver
+      handler: index.resolver
+
+    # Détection à la publication (§19 : bannière temps réel, foyer ouvert).
+    - key: content-created
+      handler: index.contentCreated
+    - key: content-updated
+      handler: index.contentUpdated
+    - key: comment-created
+      handler: index.commentCreated
+
+    # Balayage long : jusqu'à 900 s, par tranches avec curseur (§14).
+    - key: sweep-consumer
+      handler: index.sweepConsumer
+    - key: incremental-sweep
+      handler: index.incrementalSweep
+      timeoutSeconds: 900
+    - key: full-sweep
+      handler: index.fullSweep
+      timeoutSeconds: 900
+
+    # Demandes de purge groupées à l'administrateur du site (§9, étape 3).
+    - key: purge-request-hook
+      handler: index.purgeRequestHook
+
+    # Les treize outils MCP (§17) : une fonction par outil.
+    - key: scanPage
+      handler: index.scanPage
+    - key: scanSpace
+      handler: index.scanSpace
+    - key: listExposedSecrets
+      handler: index.listExposedSecrets
+    - key: getFinding
+      handler: index.getFinding
+    - key: traceFingerprint
+      handler: index.traceFingerprint
+    - key: getExposure
+      handler: index.getExposure
+    - key: getCertificate
+      handler: index.getCertificate
+    - key: checkText
+      handler: index.checkText
+    - key: recordRotation
+      handler: index.recordRotation
+    - key: requestRedaction
+      handler: index.requestRedaction
+    - key: applyRedaction
+      handler: index.applyRedaction
+    - key: dismissFinding
+      handler: index.dismissFinding
+    - key: openRemediationTicket
+      handler: index.openRemediationTicket
+
+  # ------------------------------------------------------------------ événements
+  # Noms d'événements AVI Confluence — à valider par `forge lint` et le
+  # prototype de la semaine 1 (docs/VALIDATION-22.md).
+  trigger:
+    - key: pw-content-created
+      events:
+        - avi:content:created:page
+      function: content-created
+    - key: pw-content-updated
+      events:
+        - avi:content:updated:page
+      function: content-updated
+    - key: pw-comment-created
+      events:
+        - avi:content:created:comment
+      function: comment-created
+
+  # Balayage long hors du chemin de l'événement (§19).
+  consumer:
+    - key: pw-sweep-consumer
+      queue: pw-sweep-queue
+      resolver:
+        function: sweep-consumer
+        method: consume
+
+  # Un seul déclencheur à 5 minutes est autorisé par la plateforme (§19) :
+  # l'incrémental. La passe complète est hebdomadaire.
+  scheduledTrigger:
+    - key: pw-incremental
+      interval: cron:*/5 * * * ?
+      function: incremental-sweep
+    - key: pw-full-weekly
+      interval: week
+      function: full-sweep
+
+  # -------------------------------------------------------------------- stockage
+  sql:
+    - key: pw-sql
+      engine: mysql
+
+  # LLM hébergé : famille 9/11 et candidats ambigus seulement (§7, §14).
+  llm:
+    - key: pw-llm
+      model:
+        - claude
+
+  # ---------------------------------------------------------------------- écrans
+  # Le bâtiment, le registre, le budget, l'adoption, le certificat (§18).
+  confluence:globalPage:
+    - key: placard-global
+      title: Placard
+      render: native
+      resource: global-page
+      resolver:
+        function: resolver
+
+  # Réglages par espace : familles, seuils, exclusions, politique de purge (§18).
+  confluence:spaceSettingsPage:
+    - key: placard-space-settings
+      title: Placard — réglages de l'espace
+      render: native
+      resource: space-settings
+      resolver:
+        function: resolver
+
+  # Encart sur la page : « 2 foyers, danger max 74 » (§18).
+  confluence:contentAction:
+    - key: placard-content-action
+      title: Foyers sur cette page
+      render: native
+      resource: content-action
+      resolver:
+        function: resolver
+
+  # Certificat et état d'un foyer dans une page (§18).
+  confluence:macro:
+    - key: placard-certificate
+      title: Placard — certificat
+      description: Affiche le certificat daté d'un espace, ou l'état d'un foyer.
+      render: native
+      resource: certificate-macro
+      resolver:
+        function: resolver
+
+  # -------------------------------------------------------------------- webtrigger
+  webtrigger:
+    - key: pw-purge-request
+      function: purge-request-hook
+      urlFormat: v2
+      response:
+        type: dynamic
+
+  # ------------------------------------------------------------- actions (§17)
+  action:
+    - key: scan-page
+      name: Scan page
+      description: Renvoie les foyers d'une page — famille, empreinte, aperçu
+        masqué, danger et ses termes. Aucune valeur brute.
+      actionVerb: GET
+      function: scanPage
+      inputs:
+        pageId:
+          type: string
+          required: true
+          title: Page id
+          description: Identifiant de la page Confluence.
+    - key: scan-space
+      name: Scan space
+      description: Lance un balayage borné d'un espace et renvoie son état
+        d'avancement (curseur, pages lues, budget).
+      actionVerb: GET
+      function: scanSpace
+      inputs:
+        spaceKey:
+          type: string
+          required: true
+          title: Space key
+          description: Clé de l'espace Confluence.
+        limit:
+          type: number
+          required: false
+          title: Limit
+          description: Nombre maximal de pages à balayer (borne la passe).
+    - key: list-exposed-secrets
+      name: List exposed secrets
+      description: Liste les foyers triés par danger, filtrables par espace,
+        score minimal et état du rituel. Empreintes et aperçus masqués seulement.
+      actionVerb: GET
+      function: listExposedSecrets
+      inputs:
+        spaceKey:
+          type: string
+          required: false
+          title: Space key
+          description: Restreindre à un espace.
+        minScore:
+          type: number
+          required: false
+          title: Minimum score
+          description: Danger minimal (0-100).
+        state:
+          type: string
+          required: false
+          title: State
+          description: État du rituel (open, rotation-attested, sealed…).
+        limit:
+          type: number
+          required: false
+          title: Limit
+          description: Nombre maximal de foyers renvoyés.
+    - key: get-finding
+      name: Get finding
+      description: Renvoie un foyer — emplacements, état du rituel, exposition
+        et sa méthode, termes du score.
+      actionVerb: GET
+      function: getFinding
+      inputs:
+        findingId:
+          type: string
+          required: true
+          title: Finding id
+          description: Identifiant du foyer.
+    - key: trace-fingerprint
+      name: Trace fingerprint
+      description: Retrouve tous les emplacements d'une empreinte sur le site —
+        pages, versions, commentaires, pièces jointes, modèles.
+      actionVerb: GET
+      function: traceFingerprint
+      inputs:
+        fingerprint:
+          type: string
+          required: true
+          title: Fingerprint
+          description: Empreinte HMAC-SHA-256 (hexadécimal).
+    - key: get-exposure
+      name: Get exposure
+      description: Renvoie l'exposition d'une page — lecteurs potentiels
+        (fourchette et méthode), partage, restrictions, surface IA.
+      actionVerb: GET
+      function: getExposure
+      inputs:
+        pageId:
+          type: string
+          required: true
+          title: Page id
+          description: Identifiant de la page Confluence.
+    - key: get-certificate
+      name: Get certificate
+      description: Renvoie le certificat daté et chiffré d'un espace ou du
+        site — foyers ouverts, tournés, caviardés, exposition résiduelle, angles
+        morts déclarés.
+      actionVerb: GET
+      function: getCertificate
+      inputs:
+        spaceKey:
+          type: string
+          required: false
+          title: Space key
+          description: Espace à certifier (absent = site entier).
+        site:
+          type: boolean
+          required: false
+          title: Whole site
+          description: Certifier le site entier.
+    - key: check-text
+      name: Check text
+      description: Donne les empreintes détectées dans un texte AVANT
+        publication. Le texte n'est ni stocké ni journalisé.
+      actionVerb: GET
+      function: checkText
+      inputs:
+        text:
+          type: string
+          required: true
+          title: Text
+          description: Texte à examiner (jamais persisté).
+    - key: record-rotation
+      name: Record rotation
+      description: Enregistre l'attestation de rotation d'un foyer — réservée
+        aux personnes ; un appel d'agent est refusé. Déverrouille le
+        caviardage.
+      actionVerb: CREATE
+      function: recordRotation
+      inputs:
+        findingId:
+          type: string
+          required: true
+          title: Finding id
+          description: Identifiant du foyer.
+        provider:
+          type: string
+          required: true
+          title: Provider
+          description: Fournisseur de la clé (AWS, GitHub, Stripe, générique…).
+        evidenceRef:
+          type: string
+          required: true
+          title: Evidence ref
+          description: Lien vers la preuve (ticket fournisseur, journal d'audit).
+    - key: request-redaction
+      name: Request redaction
+      description: Propose le diff de caviardage d'un foyer, emplacement par
+        emplacement. Rien n'est appliqué — le modèle d'abord, si présent.
+      actionVerb: CREATE
+      function: requestRedaction
+      inputs:
+        findingId:
+          type: string
+          required: true
+          title: Finding id
+          description: Identifiant du foyer.
+        scope:
+          type: string
+          required: false
+          title: Scope
+          description: all (défaut), current, ou une liste d'emplacements.
+    - key: apply-redaction
+      name: Apply redaction
+      description: Applique le caviardage au nom de la personne qui approuve
+        (asUser), avec commentaire de version. Refusé sans attestation de
+        rotation humaine.
+      actionVerb: UPDATE
+      function: applyRedaction
+      inputs:
+        findingId:
+          type: string
+          required: true
+          title: Finding id
+          description: Identifiant du foyer.
+        approvedBy:
+          type: string
+          required: true
+          title: Approved by
+          description: Account ID de la personne qui approuve — la modification est faite en son nom.
+        comment:
+          type: string
+          required: true
+          title: Version comment
+          description: Commentaire de version explicite.
+    - key: dismiss-finding
+      name: Dismiss finding
+      description: Pose un ruban — faux positif écarté, avec raison écrite et
+        date de révision. Le ruban n'est pas éternel.
+      actionVerb: UPDATE
+      function: dismissFinding
+      inputs:
+        findingId:
+          type: string
+          required: true
+          title: Finding id
+          description: Identifiant du foyer.
+        reason:
+          type: string
+          required: true
+          title: Reason
+          description: Raison écrite (obligatoire — un ruban sans raison est refusé).
+        reviewAt:
+          type: string
+          required: true
+          title: Review at
+          description: Date de revalidation (ISO 8601).
+    - key: open-remediation-ticket
+      name: Open remediation ticket
+      description: Crée le ticket Jira de réparation du foyer, assigné au
+        propriétaire résolu (méthode affichée).
+      actionVerb: CREATE
+      function: openRemediationTicket
+      inputs:
+        findingId:
+          type: string
+          required: true
+          title: Finding id
+          description: Identifiant du foyer.
+        projectKey:
+          type: string
+          required: true
+          title: Project key
+          description: Clé du projet Jira (ex. SEC).
+
+  # ---------------------------------------------------- agent et skill Rovo (§17)
+  rovo:agent:
+    - key: gardien-du-placard
+      name: Gardien du placard
+      description: Répond aux questions d'exposition du wiki avec des empreintes,
+        des emplacements et des scores — jamais avec une valeur.
+      prompt: >-
+        You are the “Gardien du placard” (Closet Guardian) agent of the Placard
+        for Confluence app. You answer questions about secrets and personal
+        data sleeping in the wiki, using fingerprints, locations and scores —
+        never raw values.
+
+        Absolute rules:
+        - You never reveal, guess or reconstruct a raw secret value. Tools
+          return HMAC fingerprints and masked previews only, and you report
+          them as such.
+        - Vocabulary discipline: “present” (pattern matched) is not “exposed”
+          (someone can read it), which is not “alive” (you never know), which
+          is not “revealed” (no proof of access). You never claim a key is
+          active; you say “rotation unknown for N days”.
+        - Every score you report comes with its applied terms. Every exposure
+          comes with its method. Every blind spot is declared, never hidden.
+        - A finding is visible only to people who can read the underlying
+          page. If the caller cannot read it, you answer with space-level
+          aggregates only, and you say so.
+        - When information depends on a missing permission, you answer “I
+          cannot know” and name the missing right — you never answer zero.
+        - You never attest a rotation: attestation is a human fact. You may
+          report that one exists, with its evidence link and date.
+        - Before anyone enables an assistant on a space, you can answer “what
+          would the assistant see?” with a pre-activation scan and its
+          certificate.
+
+        Use these tools: scan-page, scan-space, list-exposed-secrets,
+        get-finding, trace-fingerprint, get-exposure, get-certificate,
+        check-text.
+      conversationStarters:
+        - Where do we have credentials readable by more than a hundred people?
+        - Who can read the page that contains this password?
+        - What is left to fix before the March audit?
+        - Show public pages that contain connection strings.
+        - If we enable the assistant on the Support space, what would it see?
+      actions:
+        - scan-page
+        - scan-space
+        - list-exposed-secrets
+        - get-finding
+        - trace-fingerprint
+        - get-exposure
+        - get-certificate
+        - check-text
+
+  rovo:skill:
+    - key: before-sharing-a-page
+      source:
+        dir: skills/before-sharing-a-page
+      dependencies:
+        tools:
+          - check-text
+
+  rovo:mcp:
+    - key: placard-mcp
+      name: Placard du wiki
+      tools:
+        - scan-page
+        - scan-space
+        - list-exposed-secrets
+        - get-finding
+        - trace-fingerprint
+        - get-exposure
+        - get-certificate
+        - check-text
+        - record-rotation
+        - request-redaction
+        - apply-redaction
+        - dismiss-finding
+        - open-remediation-ticket
+
+resources:
+  - key: global-page
+    path: src/ui/global-page.tsx
+  - key: space-settings
+    path: src/ui/space-settings.tsx
+  - key: content-action
+    path: src/ui/content-action.tsx
+  - key: certificate-macro
+    path: src/ui/certificate-macro.tsx
+
+permissions:
+  scopes:
+    # Contenu, pièces jointes, espaces, restrictions, utilisateurs (§19).
+    # Noms exacts à valider par `forge lint` + prototype semaine 1.
+    - read:confluence-content.all
+    - read:confluence-content.attachment
+    - read:confluence-space
+    - read:confluence-user
+    - write:confluence-content
+    # Jira : tickets de réparation du rituel (§9, étape 1).
+    - read:jira-work
+    - write:jira-work
+    - read:jira-user
+    # Teamwork Graph : lecture seule, un droit par type d'objet (§12).
+    - read:graph:document
+    - read:graph:project
+    - read:graph:space
+    # Stockage de l'app (registre, budget, certificats).
+    - storage:app
+    # Pas de content.styles : l'app n'exécute aucun contenu tiers (§19).
+    # Pas d'external.images : aucun besoin démontré.

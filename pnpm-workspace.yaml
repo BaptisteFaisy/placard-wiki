@@ -1,0 +1,11 @@
+packages:
+  - 'packages/*'
+  # Réemploi de placard (Git) : le sous-module vendor/placard est la seule
+  # source de vérité — jamais de copie (cahier des charges §21). La forme
+  # recommandée à terme est la publication npm de @placard/detectors,
+  # @placard/analysis et @placard/core ; en attendant un compte npm, le
+  # sous-module épinglé joue exactement ce rôle.
+  - 'vendor/placard/packages/core'
+  - 'vendor/placard/packages/detectors'
+  - 'vendor/placard/packages/analysis'
+  - 'vendor/placard/packages/ritual'

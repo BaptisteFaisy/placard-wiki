@@ -1,0 +1,33 @@
+{
+  "name": "placard-wiki",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Placard du wiki — Placard for Confluence : trouver les secrets et données personnelles qui dorment dans le wiki (corps, commentaires, pièces jointes, modèles, historique de versions), chiffrer qui peut les lire (humains et IA compris), conduire la réparation dans le bon ordre. Atlassian Forge · Codegeist 2026.",
+  "license": "MIT",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --reporter=dot",
+    "test:watch": "vitest",
+    "limits": "python3 tools/check_limits.py",
+    "manifest": "node tools/validate_manifest.mjs",
+    "build": "pnpm --filter @placard-wiki/forge-app exec forge build",
+    "lint:forge": "pnpm --filter @placard-wiki/forge-app exec forge lint",
+    "seed:demo": "pnpm --filter @placard-wiki/demo-space exec tsx src/seed.ts",
+    "verify": "pnpm typecheck && pnpm test && pnpm limits && pnpm manifest",
+    "budget:check": "python3 .github/ci-budget/check_timeouts.py"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.10.0",
+    "ajv": "^8.20.0",
+    "js-yaml": "^4.3.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.8"
+  }
+}

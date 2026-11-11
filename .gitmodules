@@ -1,0 +1,3 @@
+[submodule "vendor/placard"]
+	path = vendor/placard
+	url = https://github.com/BaptisteFaisy/placard
