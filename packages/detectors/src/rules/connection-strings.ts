@@ -60,7 +60,7 @@ const KEYWORDS: readonly string[] = ['://', 'jdbc:'];
  * catastrophique sur un contenu hostile.
  */
 const URI_PATTERN = new RegExp(
-  `(?<![\\w+])((?:${SCHEMES.join('|')})://[^\\s:/@'\"]{1,64}:[^\\s:/@'\"]{1,128}@)`,
+  `(?<![\\w+])((?:${SCHEMES.join('|')})://[^\\s:/@'\"]{0,64}:[^\\s:/@'\"]{1,128}@)`,
   'gi',
 );
 
