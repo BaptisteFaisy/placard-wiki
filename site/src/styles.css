@@ -312,6 +312,12 @@ button.action:disabled {
   font-family: system-ui, sans-serif;
 }
 
+.building-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
 .legend {
   display: flex;
   flex-wrap: wrap;

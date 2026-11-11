@@ -100,6 +100,7 @@ export const DICT = {
   locPresent: D('present', 'présent'),
   locRedacted: D('redacted', 'caviardé'),
   locVanished: D('vanished (page deleted)', 'disparu (page supprimée)'),
+  inHistory: D('in history', 'dans l’historique'),
   ritualTitle: D('The ritual — local demo, no backend', 'Le rituel — démo locale, aucun backend'),
   ritualIntro: D('Five steps, in order, with locks. State is local to this page; nothing is sent anywhere.', 'Cinq étapes, dans l’ordre, avec des verrous. L’état est local à cette page ; rien n’est envoyé.'),
   actorLabel: D('Who is acting?', 'Qui agit ?'),
