@@ -1,0 +1,173 @@
+/**
+ * Support de test des services — construit un `ServiceContext` entièrement en
+ * mémoire (store mémoire + client Confluence à fixtures + ports factices).
+ *
+ * Règle PLA-N-09 : aucune valeur au format réel d'un secret n'est écrite dans
+ * le dépôt. Les valeurs à forme de secret sont fabriquées à l'exécution (voir
+ * `fakeCloudKeyValue`). Les tests n'instancient JAMAIS `@forge/sql`.
+ */
+
+import { createHash } from 'node:crypto';
+import { createFixtureClient } from '@placard-wiki/wiki-source';
+import type { ConfluenceClient } from '@placard-wiki/wiki-source';
+import { createCachedOracle } from '@placard-wiki/detectors';
+import type { CachedOracle, LlmOracle } from '@placard-wiki/detectors';
+import { fixedClock, sequenceIds } from '@placard-wiki/ritual';
+import type { ClockPort, IdPort, StoragePort } from '@placard-wiki/ritual';
+
+import { createMemoryStore } from '../store/memory-store.js';
+import type { ForgeStore } from '../store/ports.js';
+import type {
+  AccessPort, ActorContext, JiraPort, OwnerSourcePort, RealtimePort,
+  ServiceContext, TeamworkGraphPort,
+} from './ports.js';
+
+/**
+ * Valeur à forme de clé cloud, fabriquée à l'exécution (PLA-N-09 : aucune
+ * valeur au format réel d'un secret n'est écrite dans le dépôt). Préfixe +
+ * 16 caractères majuscules/chiffres, déterministe depuis une graine.
+ */
+function fakeCloudKeyValue(seed: string): string {
+  const digest = createHash('sha256').update(seed).digest();
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let out = 'AKIA';
+  for (let i = 0; i < 16; i += 1) {
+    const byte = digest[i % digest.length] ?? 0;
+    out += alphabet[byte % alphabet.length];
+  }
+  return out;
+}
+
+/** Clé cloud factice, fabriquée à l'exécution (jamais écrite dans le dépôt). */
+export const FAKE_CLOUD_KEY = fakeCloudKeyValue('forge-app-test');
+
+/** Identifiants de la fixture. */
+export const PAGE_ID = '1001';
+export const SPACE_KEY = 'DEMO';
+
+/** Charge utile d'une page de fixture (corps contenant la clé factice). */
+function fixturePages(): Array<{
+  id: string; title: string; spaceKey: string; versionNumber: number;
+  bodyStorage: string; labels: string[]; lastModifiedAt: string;
+}> {
+  return [{
+    id: PAGE_ID,
+    title: 'Runbook de démonstration',
+    spaceKey: SPACE_KEY,
+    versionNumber: 3,
+    bodyStorage: `<p>export AWS_ACCESS_KEY_ID=${FAKE_CLOUD_KEY}</p>`,
+    labels: ['runbook'],
+    lastModifiedAt: '2026-11-09T08:00:00.000Z',
+  }];
+}
+
+/** Client Confluence mémoire (aucun réseau). */
+export function testConfluenceClient(): ConfluenceClient {
+  return createFixtureClient({ pages: fixturePages() });
+}
+
+/** Oracle factice : tranche toujours « secret réel », sans appel LLM. */
+export function testOracle(hmacKey: string): CachedOracle {
+  const fake: LlmOracle = async () => ({ isSecret: true, reasonFr: 'oracle de test', confidence: 1 });
+  return createCachedOracle(fake, { hmacKey });
+}
+
+/** Écriture de page factice : enregistre les versions écrites. */
+export interface FakeStorage extends StoragePort {
+  written: Array<{ pageId: string; text: string; comment: string; asUser: string }>;
+}
+
+function testStorage(): FakeStorage {
+  const written: FakeStorage['written'] = [];
+  return {
+    written,
+    async writeVersion(pageId, text, versionComment, asUser) {
+      written.push({ pageId, text, comment: versionComment, asUser });
+      return 4;
+    },
+  };
+}
+
+/** Ports factices (propriétaire, graphe, Realtime, Jira, accès). */
+function testOwnerSource(): OwnerSourcePort {
+  return {
+    async declaredOwner() { return 'ari:identity::alice'; },
+    async lastEditors() { return ['ari:identity::bob']; },
+    async spaceLead() { return undefined; },
+  };
+}
+
+function testGraph(): TeamworkGraphPort {
+  return { async teamOwner() { return { confidence: 'none' as const, caveat: 'graphe de test' }; } };
+}
+
+export interface FakeRealtime extends RealtimePort {
+  published: Array<{ channel: string; payload: Record<string, unknown> }>;
+}
+
+function testRealtime(): FakeRealtime {
+  const published: FakeRealtime['published'] = [];
+  return {
+    published,
+    async publish(channel, payload) { published.push({ channel, payload }); },
+  };
+}
+
+export interface FakeJira extends JiraPort {
+  issues: Array<{ projectKey: string; summary: string }>;
+}
+
+function testJira(): FakeJira {
+  const issues: FakeJira['issues'] = [];
+  return {
+    issues,
+    async createIssue(payload) {
+      issues.push({ projectKey: payload.projectKey, summary: payload.summary });
+      return { key: 'SEC-1', url: '/browse/SEC-1' };
+    },
+  };
+}
+
+function testAccess(): AccessPort {
+  return { async canReadPage() { return true; } };
+}
+
+/** Options de construction du contexte de test. */
+export interface TestContextOptions {
+  hmacKey?: string;
+  clock?: ClockPort;
+  ids?: IdPort;
+  store?: ForgeStore;
+  confluence?: ConfluenceClient;
+  actor?: ActorContext;
+}
+
+/** Contexte de service entièrement factice, pour les tests. */
+export function makeTestContext(options: TestContextOptions = {}): ServiceContext & {
+  storage: FakeStorage; realtime: FakeRealtime; jira: FakeJira;
+} {
+  const hmacKey = options.hmacKey ?? 'cle-hmac-de-test';
+  const store = options.store ?? createMemoryStore();
+  const confluence = options.confluence ?? testConfluenceClient();
+  const clock = options.clock ?? fixedClock('2026-11-11T10:00:00.000Z');
+  const ids = options.ids ?? sequenceIds();
+  const storage = testStorage();
+  const realtime = testRealtime();
+  const jira = testJira();
+  const actor = options.actor ?? { kind: 'human' as const, accountId: 'ari:identity::alice' };
+  return {
+    store,
+    confluence,
+    hmacKey,
+    clock,
+    ids,
+    storage,
+    oracle: testOracle(hmacKey),
+    ownerSource: testOwnerSource(),
+    graph: testGraph(),
+    realtime,
+    jira,
+    access: testAccess(),
+    actor: () => actor,
+  };
+}
