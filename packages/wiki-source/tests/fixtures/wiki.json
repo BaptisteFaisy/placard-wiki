@@ -1,0 +1,99 @@
+{
+  "spaces": [
+    {
+      "key": "RUN",
+      "name": "Runbooks (fixture)",
+      "descriptionStorage": "<p>Espace de démonstration — description factice, aucun secret réel.</p>",
+      "homepageId": "1001"
+    }
+  ],
+  "pages": [
+    {
+      "id": "1001",
+      "title": "Accueil — procédures d'accès (fixture)",
+      "spaceKey": "RUN",
+      "versionNumber": 2,
+      "bodyStorage": "<p>Page d'accueil factice : comptes de démonstration uniquement.</p>",
+      "labels": ["runbook", "accueil"],
+      "lastModifiedAt": "2026-11-03T09:00:00.000Z"
+    },
+    {
+      "id": "1002",
+      "title": "Runbook staging (fixture)",
+      "spaceKey": "RUN",
+      "versionNumber": 3,
+      "bodyStorage": "<p>Corps factice avec un bloc de code : <code>export DEMO_USER=fixture</code></p>",
+      "labels": ["staging"],
+      "lastModifiedAt": "2026-11-04T10:30:00.000Z"
+    },
+    {
+      "id": "1003",
+      "title": "Base documentaire (fixture)",
+      "spaceKey": "RUN",
+      "versionNumber": 1,
+      "bodyStorage": "<p>Rien à signaler — contenu factice.</p>",
+      "labels": [],
+      "lastModifiedAt": "2026-11-05T08:15:00.000Z"
+    },
+    {
+      "id": "1004",
+      "title": "Intégrations partenaires (fixture)",
+      "spaceKey": "RUN",
+      "versionNumber": 1,
+      "bodyStorage": "<p>Tableau factice d'intégrations.</p>",
+      "labels": ["partenaires"],
+      "lastModifiedAt": "2026-11-06T14:00:00.000Z"
+    },
+    {
+      "id": "1005",
+      "title": "Journal des incidents (fixture)",
+      "spaceKey": "RUN",
+      "versionNumber": 1,
+      "bodyStorage": "<p>Entrées factices.</p>",
+      "labels": [],
+      "lastModifiedAt": "2026-11-07T17:45:00.000Z"
+    }
+  ],
+  "versions": {
+    "1002": [
+      { "number": 1, "title": "Runbook staging (v1)", "bodyStorage": "<p>Première version factice — la cave garde tout.</p>" },
+      { "number": 2, "title": "Runbook staging (v2)", "bodyStorage": "<p>Version 2 factice : ligne « corrigée » plus tard.</p>" },
+      { "number": 3, "title": "Runbook staging (v3)", "bodyStorage": "<p>Corps factice avec un bloc de code : <code>export DEMO_USER=fixture</code></p>" }
+    ]
+  },
+  "comments": {
+    "1002": [
+      { "id": "c-101", "bodyStorage": "<p>Commentaire factice : « la réponse est dans le runbook ».</p>", "versionNumber": 1, "createdAt": "2026-11-04T11:00:00.000Z" },
+      { "id": "c-102", "bodyStorage": "<p>Second commentaire factice.</p>", "versionNumber": 1, "createdAt": "2026-11-04T12:00:00.000Z" }
+    ]
+  },
+  "attachments": {
+    "1002": [
+      { "id": "a-201", "filename": "notes-deploiement.env", "mediaType": "application/octet-stream", "sizeBytes": 412 },
+      { "id": "a-202", "filename": "capture-ecran.png", "mediaType": "image/png", "sizeBytes": 304128 },
+      { "id": "a-203", "filename": "export-complet.csv", "mediaType": "text/csv", "sizeBytes": 6000000 }
+    ]
+  },
+  "attachmentContent": {
+    "a-201": { "text": "DEMO_HOST=fixture.local\nDEMO_USER=lecteur-factice\n" },
+    "a-202": { "binary": true },
+    "a-203": { "text": "trop gros pour la fixture — jamais chargé" }
+  },
+  "templates": [
+    {
+      "id": "t-301",
+      "title": "Modèle runbook d'accès (fixture)",
+      "spaceKey": "RUN",
+      "bodyStorage": "<h1>Procédure</h1><p>Modèle factice — chaque nouvelle page recopie ce canevas.</p>"
+    }
+  ],
+  "restrictions": {
+    "1002": { "read": ["groupe-restreint"], "update": [] }
+  },
+  "permissions": {
+    "RUN": [
+      { "type": "known", "principal": "groupe-restreint", "operation": "read" },
+      { "type": "known", "principal": "groupe-restreint", "operation": "administer" }
+    ]
+  }
+}
