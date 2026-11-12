@@ -18,6 +18,8 @@
     "build": "pnpm --filter @placard-wiki/forge-app exec forge build",
     "lint:forge": "pnpm --filter @placard-wiki/forge-app exec forge lint",
     "seed:demo": "pnpm --filter @placard-wiki/demo-space exec tsx src/seed.ts",
+    "demo": "tsx packages/demo-space/src/demo.ts",
+    "demo:json": "tsx packages/demo-space/src/demo.ts --json",
     "verify": "pnpm typecheck && pnpm test && pnpm limits && pnpm manifest",
     "budget:check": "python3 .github/ci-budget/check_timeouts.py"
   },

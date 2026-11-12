@@ -22,6 +22,8 @@
 import { Queue } from '@forge/events';
 
 import { getServiceContext, probeConfluence } from './runtime/context';
+import { denyReason, scopeForPath } from './runtime/confluence-access';
+import { allProbePaths } from './runtime/probe-paths';
 import { buildingModel, coverageReport, generateCertificate, maskText, registryRows, runSweep } from './services/index';
 import type { ServiceContext } from './services/ports';
 import type {
@@ -146,7 +148,7 @@ const DEMO_SPACE = 'PLACARDDEMO';
 const INLINE_SWEEP_PAGES = 25;
 
 /** Une page de l'espace de démonstration, pour la sonde des points d'accès. */
-const PROBE_PAGE_ID = '3932169';
+const PROBE_PAGE_ID = '3964930';
 
 /** Ce que la passe demandée a donné — déclaré, jamais inventé. */
 interface RefreshReport {
@@ -230,21 +232,19 @@ async function liveSpaces(ctx: ServiceContext, keys: readonly string[]): Promise
   return spaces;
 }
 
-/** La couverture réelle : compteurs du jour + angles morts déclarés par le service. */
+/**
+ * La couverture réelle : c'est celle du rapport `coverageReport` (les sept
+ * gîtes, chacun avec ses compteurs et sa raison de refus). Le webtrigger se
+ * contente de la reprendre telle quelle — les compteurs viennent du store,
+ * jamais de valeurs statiques.
+ */
 function liveCoverage(base: CoverageReport, budget: ScanBudget, lastPassAt?: string): CoverageReport {
   const coverage: CoverageReport = {
-    perGite: [
-      { gite: 'corps-de-page', scanned: budget.pagesScanned, skipped: 0 },
-      {
-        gite: 'pieces-jointes',
-        scanned: budget.attachmentsRead,
-        skipped: budget.attachmentsSkipped,
-        reason: 'Binaire sans texte ou taille dépassée — détail dans le budget.',
-      },
-    ],
+    perGite: base.perGite.map((gite) => ({ ...gite })),
     blindSpots: [...base.blindSpots],
     missingRights: [...base.missingRights],
   };
+  void budget;
   if (lastPassAt !== undefined) coverage.lastPassAt = lastPassAt;
   return coverage;
 }
@@ -348,26 +348,19 @@ async function inlineSweep(ctx: ServiceContext, asked: string | string[] | undef
  * diagnostic qui a permis de voir que la recherche CQL répond 200 alors que
  * la lecture d'une page répond 401. Le chemin qui répond 200 est celui que le
  * client Confluence doit employer.
+ *
+ * Chaque résultat porte la **raison précise** du refus (scope manquant,
+ * chemin inconnu) : un 401 nu ne dit pas quoi demander à l'administrateur.
  */
 async function runProbe(): Promise<unknown> {
-  const pageId = PROBE_PAGE_ID;
-  const paths = [
-    `/wiki/rest/api/content/search?cql=id%3D${pageId}&limit=1`,
-    `/wiki/rest/api/content/search?cql=id%3D${pageId}&limit=1&expand=body.storage,version`,
-    `/wiki/rest/api/content/${pageId}`,
-    `/wiki/rest/api/content/${pageId}?expand=body.storage`,
-    `/wiki/rest/api/content/${pageId}?expand=body.storage,version,metadata.labels`,
-    `/wiki/rest/api/content/${pageId}?expand=body.storage%2Cversion%2Cmetadata.labels`,
-    `/wiki/rest/api/content/${pageId}/child/comment?expand=body.storage,version`,
-    `/wiki/rest/api/content/${pageId}/child/attachment`,
-    `/wiki/rest/api/content/${pageId}/version`,
-    `/wiki/rest/api/content/${pageId}/restriction`,
-    `/wiki/api/v2/pages/${pageId}?body-format=storage`,
-    `/wiki/api/v2/pages/${pageId}/versions`,
-  ];
-  const results = await probeConfluence(paths);
-  console.info(`[placard] sonde Confluence : ${JSON.stringify(results)}`);
-  return results;
+  const results = await probeConfluence(allProbePaths(PROBE_PAGE_ID, DEMO_SPACE).map((p) => p.path));
+  const labelled = results.map((result) => ({
+    ...result,
+    scope: scopeForPath(result.path),
+    reason: result.status >= 400 ? denyReason(result.path, result.status) : undefined,
+  }));
+  console.info(`[placard] sonde Confluence : ${JSON.stringify(labelled)}`);
+  return labelled;
 }
 
 /**
