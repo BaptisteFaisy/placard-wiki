@@ -195,13 +195,14 @@ async function persistGiteCoverage(ctx: ServiceContext, acc: ScanAccumulator): P
   }
   for (const line of lines) {
     const previous = await ctx.store.giteCoverage.get(day, line.gite);
+    // La raison n'est donc conservée que si le gîte est resté illisible PENDANT
+    // cette passe : un gîte désormais lu ne traîne pas son ancien refus.
+    const reason = line.reason ?? (line.scanned > 0 ? undefined : previous?.reason);
     await ctx.store.giteCoverage.put({
       gite: line.gite,
       scanned: (previous?.scanned ?? 0) + line.scanned,
       skipped: (previous?.skipped ?? 0) + line.skipped,
-      ...(line.reason ?? previous?.reason) !== undefined
-        ? { reason: line.reason ?? previous?.reason }
-        : {},
+      ...(reason !== undefined ? { reason } : {}),
     }, day);
   }
 }
