@@ -144,6 +144,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 .github/hermes/sonde.py --selftest
+          python3 .github/hermes/test_sonde.py
           python3 .github/hermes/test_a2a.py
           python3 .github/hermes/test_compilation_gate.py
           python3 .github/hermes/test_conflict_agent.py
