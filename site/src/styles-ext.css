@@ -1,0 +1,328 @@
+/* Extensions de style du site — nouveaux écrans (MCP, Rovo, skill,
+   pré-activation, propagation, propriétaire, réglages, bannière, couverture).
+   Même discipline WCAG AA : fonds pleins, focus visible, jamais de couleur
+   seule. styles.css reste inchangé ; ce fichier est importé après. */
+
+/* ---- Playground MCP ---- */
+
+.mcp-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 2fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 800px) {
+  .mcp-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mcp-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.mcp-tools button {
+  font: inherit;
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border: 2px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  cursor: pointer;
+}
+
+.mcp-tools button[aria-pressed='true'] {
+  border-color: var(--fg);
+  background: #eceef4;
+  font-weight: 700;
+}
+
+.verb {
+  display: inline-block;
+  min-width: 4.2em;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+  margin-right: 0.4rem;
+  border: 1px solid var(--fg);
+}
+
+.verb-GET { background: #e3efe4; color: #14351a; }
+.verb-CREATE { background: #e6ebf7; color: #17275c; }
+.verb-UPDATE { background: #f6ebd9; color: #4a3410; }
+
+.mcp-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: var(--panel);
+}
+
+.mcp-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.9rem;
+}
+
+.mcp-form input,
+.mcp-form select,
+.mcp-form textarea {
+  font: inherit;
+  padding: 0.3rem 0.4rem;
+  border: 2px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--fg);
+}
+
+.json-out {
+  background: #14161f;
+  color: #e8e9ee;
+  padding: 0.75rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  max-height: 34rem;
+}
+
+.tool-note {
+  border-left: 4px solid var(--accent);
+  background: #f6ecec;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0 6px 6px 0;
+  font-size: 0.9rem;
+}
+
+/* ---- Chat Rovo ---- */
+
+.chat {
+  list-style: none;
+  margin: 0.75rem 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.bubble {
+  max-width: 52rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  border: 2px solid var(--line);
+  background: var(--panel);
+}
+
+.bubble-user {
+  align-self: flex-end;
+  background: #e6ebf7;
+  border-color: #93a2cc;
+}
+
+.bubble-agent {
+  align-self: flex-start;
+  background: #f2f3ee;
+}
+
+.bubble-role {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: 0.2rem;
+}
+
+.bubble-text {
+  margin: 0;
+  white-space: pre-line;
+}
+
+.starters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.75rem 0;
+}
+
+.starter {
+  font: inherit;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  cursor: pointer;
+}
+
+.starter:hover {
+  border-color: var(--fg);
+  background: #eceef4;
+}
+
+.chat-input {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.chat-input input {
+  flex: 1;
+  font: inherit;
+  padding: 0.45rem 0.6rem;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- Skill before-sharing ---- */
+
+.skill-rules {
+  margin: 0.5rem 0 0.75rem;
+  padding-left: 1.4rem;
+}
+
+.field-label {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+textarea#skill-text,
+textarea#banner-text {
+  width: 100%;
+  font: inherit;
+  font-size: 0.92rem;
+  padding: 0.5rem;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--fg);
+}
+
+.skill-results code {
+  font-size: 0.85em;
+  background: #eef0f5;
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+}
+
+/* ---- Pré-activation IA ---- */
+
+dl.figures {
+  display: grid;
+  grid-template-columns: max-content auto;
+  gap: 0.3rem 1rem;
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  width: fit-content;
+}
+
+dl.figures dt {
+  font-weight: 700;
+}
+
+dl.figures dd {
+  margin: 0;
+  text-align: right;
+}
+
+.cert-mini {
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: var(--panel);
+  margin-top: 1rem;
+}
+
+/* ---- Propagation (§11) ---- */
+
+.prop-timeline {
+  margin: 0.5rem 0;
+  padding-left: 1.4rem;
+}
+
+.prop-timeline li {
+  margin-bottom: 0.35rem;
+}
+
+.prop-source {
+  font-weight: 700;
+}
+
+.prop-graph {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) auto minmax(200px, 2fr);
+  gap: 0.75rem;
+  align-items: center;
+  margin: 0.75rem 0;
+}
+
+.prop-node {
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 0.4rem 0.6rem;
+  font-size: 0.88rem;
+}
+
+.prop-node-source {
+  border-color: var(--fg);
+  font-weight: 700;
+}
+
+.prop-edges {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.prop-edge-dup {
+  color: var(--danger-high);
+}
+
+.prop-leaves {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.prop-batch li {
+  margin-bottom: 0.3rem;
+}
+
+@media (max-width: 700px) {
+  .prop-graph {
+    grid-template-columns: 1fr;
+  }
+  .prop-edges {
+    flex-direction: row;
+  }
+}
+
