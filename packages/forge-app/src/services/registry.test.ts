@@ -116,6 +116,17 @@ describe('coverageReport — couverture par gîte mesurée (§6)', () => {
     }
   });
 
+  it('la description d\'espace (gîte 7) est lue et déclarée lue, pas « hors passe »', async () => {
+    const ctx = demoContext();
+    await coverageAfterSweep(ctx, DEMO_PAGE);
+
+    const report = await coverageReport(ctx);
+    const space = gite(report, 'description-espace');
+    expect(space).toBeDefined();
+    // Lue par la passe : la raison « hors de la passe » ne doit plus être là.
+    expect(space?.reason ?? '').not.toContain('hors de la passe de pages');
+  });
+
   it('un gîte illisible porte la raison (scope manquant), pas un 401 nu', async () => {
     const ctx = makeTestContext({
       confluence: {

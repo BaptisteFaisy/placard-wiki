@@ -152,7 +152,7 @@ function recordAttachment(acc: ScanAccumulator, item: ScannedItem, findingsCount
 }
 
 /** Scanne un élément : détections + oracle + couverture pièce jointe. */
-async function scanOneItem(
+export async function scanOneItem(
   ctx: ServiceContext,
   item: ScannedItem,
   acc: ScanAccumulator,

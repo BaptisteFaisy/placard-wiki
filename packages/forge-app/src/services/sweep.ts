@@ -14,6 +14,7 @@ import {
   cqlFullTranche,
   cqlQuote,
   deserializeCursor,
+  readSpaceDescription,
   searchPaginated,
   serializeCursor,
   toSweepCursor,
@@ -26,9 +27,8 @@ import type { Foyer, PageExposure, ScanBudget, WikiFamily } from '@placard-wiki/
 import type { ServiceContext, SweepResult } from './ports';
 import { computePageExposure } from './exposure';
 import { scoreFoyer } from './scoring';
-import { emptyAccumulator, scanPageInto } from './scan-page';
+import { emptyAccumulator, noteGite, scanOneItem, scanPageInto } from './scan-page';
 import type { ScanAccumulator } from './scan-page';
-import { noteGite } from './scan-page';
 import type { GiteCoverageLine } from '../store/ports';
 
 /** Paramètres d'un balayage borné. */
@@ -181,7 +181,7 @@ async function persistScans(ctx: ServiceContext, acc: ScanAccumulator): Promise<
  */
 async function persistGiteCoverage(ctx: ServiceContext, acc: ScanAccumulator): Promise<void> {
   const day = ctx.clock.now().slice(0, 10);
-  const MERGED: readonly string[] = ['modeles-de-page', 'description-espace'];
+  const MERGED: readonly string[] = ['modeles-de-page'];
   const lines: GiteCoverageLine[] = [...acc.gites.values()];
   for (const gite of MERGED) {
     if (!lines.some((l) => l.gite === gite)) {
@@ -227,6 +227,31 @@ async function updateBudget(ctx: ServiceContext, acc: ScanAccumulator, pages: nu
   await ctx.store.budget.put(budget);
 }
 
+/**
+ * Gîte 7 — description d'espace et page d'accueil : c'est l'endroit le plus
+ * lu (une description d'espace est lue par tous les membres de l'espace).
+ *
+ * Elle est lue **une fois par passe**, pas page par page : c'est une donnée
+ * d'espace, pas de page. Son contenu rejoint le balayage comme n'importe
+ * quel autre texte.
+ */
+async function scanSpaceDescription(
+  ctx: ServiceContext,
+  spaceKey: string,
+  acc: ScanAccumulator,
+  disabled: readonly WikiFamily[],
+): Promise<void> {
+  try {
+    const items = await readSpaceDescription(ctx.confluence, spaceKey);
+    noteGite(acc, 'description-espace', items.length);
+    for (const item of items) await scanOneItem(ctx, item, acc, ctx.clock.now(), disabled);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    noteGite(acc, 'description-espace', 0, reason);
+    acc.blindSpots.push(`Gîte « description-espace » illisible : ${reason}.`);
+  }
+}
+
 /** Lance un balayage borné (§14). */
 export async function runSweep(ctx: ServiceContext, params: SweepParams): Promise<SweepResult> {
   const startedAt = ctx.clock.now();
@@ -236,6 +261,7 @@ export async function runSweep(ctx: ServiceContext, params: SweepParams): Promis
   const { pageIds, cursor, done } = await collectPageIds(ctx, params, maxPages);
   const acc = emptyAccumulator();
   await scanSlice(ctx, pageIds, acc, disabled);
+  await scanSpaceDescription(ctx, params.scope, acc, disabled);
   const exposures = await computeExposures(ctx, acc);
   const foyersTouched = await finalizeFoyers(ctx, acc, exposures);
   await persistScans(ctx, acc);

@@ -126,7 +126,7 @@ function addDrafts(wing: BuildingModel['wings'][number], foyer: Foyer): void {
 export const DECLARED_BLIND_SPOTS: readonly string[] = [
   'Whiteboards et bases Confluence : non balayés (PW-29) — angle mort déclaré.',
   'Captures d’écran : aucun OCR, les secrets d’une image échappent au balayage texte (§24) — angle mort déclaré.',
-  'Modèles de page et description d’espace (gîtes 5 et 7) : hors de la passe de pages (§6) — angle mort déclaré.',
+  'Modèles de page (gîte 5) : hors de la passe de pages (§6) — angle mort déclaré.',
 ];
 
 /** Droit du graphe à valider (§12, §22) — déclaré même avant toute résolution. */

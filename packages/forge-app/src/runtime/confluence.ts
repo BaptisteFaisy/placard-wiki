@@ -32,7 +32,7 @@ import { asApp, assumeTrustedRoute } from '@forge/api';
 import { createConfluenceClient, cqlQuote } from '@placard-wiki/wiki-source';
 import type {
   AttachmentDownload, AttachmentMeta, ConfluenceClient, ConfluencePage, CommentItem,
-  FetchLike, ResponseLike, VersionContent, VersionSummary,
+  FetchLike, ResponseLike, SpaceDescription, VersionContent, VersionSummary,
 } from '@placard-wiki/wiki-source';
 import { REASON_FORBIDDEN } from '@placard-wiki/wiki-source';
 
@@ -210,6 +210,29 @@ async function getVersionContentV2(
 }
 
 /**
+ * Gîte 7 — description d'un espace via l'API v2
+ * (`/spaces?keys=…&description-format=PLAIN`). Le v1 `/space/{key}` est
+ * retiré (410 Gone) ; la v2 répond 200 et rend la description en clair.
+ */
+async function getSpaceDescriptionV2(
+  fetchImpl: FetchLike,
+  spaceKey: string,
+): Promise<SpaceDescription> {
+  const path = `/wiki/api/v2/spaces?keys=${encodeURIComponent(spaceKey)}&description-format=PLAIN`;
+  const body = (await jsonOrThrow(fetchImpl, path)) as { results?: unknown[] };
+  const row = (body.results ?? [])[0] as Record<string, unknown> | undefined;
+  if (row === undefined) throw new Error(`espace ${spaceKey} introuvable via l'API v2 Confluence`);
+  const description = obj(row, 'description');
+  const plain = obj(description, 'plain');
+  return {
+    key: typeof row['key'] === 'string' ? row['key'] : spaceKey,
+    name: typeof row['name'] === 'string' ? row['name'] : spaceKey,
+    ...(typeof plain['value'] === 'string' ? { descriptionStorage: plain['value'] } : {}),
+    ...(typeof row['homepageId'] === 'string' ? { homepageId: row['homepageId'] } : {}),
+  };
+}
+
+/**
  * Fabrique le client Confluence du runtime : le client du paquet, avec chaque
  * lecture de gîte redirigée vers le chemin qui répond (v2 ou recherche CQL).
  * Le `fetch` est injectable pour les tests (fixtures, jamais de réseau).
@@ -225,6 +248,7 @@ export function createForgeConfluence(
     listAttachments: (pageId: string) => listAttachmentsV2(fetchImpl, pageId),
     listVersions: (pageId: string) => listVersionsV2(fetchImpl, pageId),
     getVersionContent: (pageId: string, n: number) => getVersionContentV2(fetchImpl, pageId, n),
+    getSpaceDescription: (spaceKey: string) => getSpaceDescriptionV2(fetchImpl, spaceKey),
     downloadAttachment: (pageId, attachmentId, maxBytes) =>
       downloadAttachmentV1(fetchImpl, pageId, attachmentId, maxBytes),
   };

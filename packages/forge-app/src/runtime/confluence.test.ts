@@ -201,6 +201,38 @@ describe('createForgeConfluence — l\'historique via l\'API v2 (gîte 4)', () =
   });
 });
 
+describe('createForgeConfluence — la description d\'espace via l\'API v2 (gîte 7)', () => {
+  it('lit la description en clair depuis /spaces?keys=…&description-format=PLAIN', async () => {
+    const { fetch, called } = spy((path) => {
+      if (path.includes('/api/v2/spaces?keys=')) {
+        return {
+          status: 200,
+          body: {
+            results: [{
+              id: '3833860', key: 'DEMO', name: 'Espace démo', homepageId: '3834036',
+              description: {
+                plain: {
+                  representation: 'plain',
+                  value: 'SYNTHÉTIQUE — 1 — ASIAWXJ8DRNTYXF36479',
+                },
+              },
+            }],
+          },
+        };
+      }
+      return { status: 410, body: { message: 'deprecated' } };
+    });
+    const client = createForgeConfluence(fetch);
+    const space = await client.getSpaceDescription('DEMO');
+    expect(called[0]).toContain('keys=DEMO');
+    expect(called[0]).toContain('description-format=PLAIN');
+    expect(space.key).toBe('DEMO');
+    expect(space.name).toBe('Espace démo');
+    expect(space.descriptionStorage).toBe('SYNTHÉTIQUE — 1 — ASIAWXJ8DRNTYXF36479');
+    expect(space.homepageId).toBe('3834036');
+  });
+});
+
 describe('createForgeConfluence — la clé d\'espace est lue sous ses deux formes', () => {
   it('lit la clé d\'espace depuis un lien (/rest/api/space/MSD)', async () => {
     const { fetch } = spy((path) => {
