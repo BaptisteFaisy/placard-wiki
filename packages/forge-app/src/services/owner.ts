@@ -17,8 +17,16 @@ import type { ServiceContext } from './ports';
 
 /** Demande d'accès au graphe documentée, à valider (§12, §22). */
 export const GRAPH_ACCESS_NOTE =
-  'Teamwork Graph interrogé en lecture seule (read:graph:document, read:graph:project) ' +
-  'au nom d’un utilisateur connecté — droits à valider semaine 1 (§22).';
+  'Teamwork Graph interrogé en lecture seule (read:graph:page:confluence, ' +
+  'read:graph:project:atlassian, read:graph:space:confluence) au nom d’un ' +
+  'utilisateur connecté — un droit par type d’objet (§12, §22).';
+
+/**
+ * Caveat d'un droit manquant sur le graphe (§19) : « pas de droit » n'est pas
+ * « pas de données ». Produit par le port réel comme par les tests.
+ */
+export const GRAPH_MISSING_RIGHT_CAVEAT =
+  'Droit manquant sur le Teamwork Graph (§19) : « pas de droit » ≠ « pas de données ».';
 
 /** Construit une résolution (horodatée par le port `clock`). */
 function resolution(

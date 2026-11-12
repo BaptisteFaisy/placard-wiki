@@ -4,24 +4,56 @@
 >
 > Ce guide accompagne la **soumission** (avant le mardi 22 décembre 2026, 21 h,
 > Paris). Les éléments marqués *(placeholder)* y seront complétés au moment du
-> dépôt : lien d'installation réel, identifiants de démonstration. État du dépôt
-> à l'heure où ces lignes sont écrites : les huit paquets sont implémentés et
-> mergés, le site de démonstration public est en ligne — la recette publique
-> suit [`RECETTE-25.md`](RECETTE-25.md), jamais l'inverse.
+> dépôt : lien d'installation réel, identifiants de démonstration — ce sont les
+> deux seules informations qui manquent, et **elles ne doivent jamais être
+> inventées** (qui les fournit est indiqué ci-dessous).
+>
+> État du dépôt au 12 novembre 2026 : les huit paquets sont implémentés et
+> mergés, **298 tests** (34 fichiers) sont verts, le manifeste est cohérent avec
+> les exports réels de l'app, et le site de démonstration public est en ligne et
+> répond. La recette publique suit [`RECETTE-25.md`](RECETTE-25.md), jamais
+> l'inverse.
 
 ## Tester le produit sans rien installer (en dehors du chrono)
 
 **Site de démonstration public** :
-<https://baptistefaisy.github.io/placard-wiki/> — registre, bâtiment, rituel en
-démo locale, certificat. Données 100 % synthétiques (fixtures `demo-space`,
-§15) : de quoi comprendre le produit en deux minutes, sans installation, sans
-site Confluence, sans identifiants. Le chrono ci-dessous, lui, se joue sur
-**l'app installée** dans votre site, avec l'espace de démonstration semé.
+<https://baptistefaisy.github.io/placard-wiki/> — statique, données 100 %
+synthétiques (fixtures `demo-space`, §15), bilingue EN/FR, seize écrans : de
+quoi comprendre le produit en deux minutes, sans installation, sans site
+Confluence, sans identifiants. Réponse HTTP 200 vérifiée le 12 novembre 2026.
+Le chrono ci-dessous, lui, se joue sur **l'app installée** dans votre site,
+avec l'espace de démonstration semé.
+
+### Le parcours de 10 minutes sur le site public (si vous n'installez rien)
+
+| Onglet | Ce qu'il montre | Source, honnêtement |
+|---|---|---|
+| Home | la promesse, les sept gîtes, ce que l'app ne fait pas | textes du dépôt |
+| Register | le registre : tri, filtres, une ligne = un foyer | données de démo |
+| Building | le bâtiment (PW-25) : aile, pièce, lueur sous la porte, trappe de cave, courant d'air | rendu local |
+| Foyer sheet | la fiche : **tous les termes du score**, l'exposition et sa méthode, la surface IA | données de démo |
+| Ritual | les cinq étapes et leurs verrous | état local, aucun backend |
+| Certificate | le certificat daté et chiffré | données de démo |
+| Propagation | une empreinte, N emplacements, le modèle traité en premier | données de démo |
+| Owner | la résolution de propriétaire en cascade (§12) | données de démo |
+| Pre-activation | « qu'est-ce que l'assistant verrait ? » et les angles morts | **vrai paquet** `@placard-wiki/exposure` |
+| MCP | les treize outils, réponses JSON exactes | exécution **simulée** sur le jeu de démo ; les verrous, les refus et l'ordre de caviardage viennent du **vrai code** des paquets ; `check-text` est un **vrai calcul local** (WebCrypto) |
+| Rovo | les cinq questions de l'agent | chat **simulé** — aucun réseau, aucun appel LLM |
+| Skill | `before-sharing-a-page` : vérifier un texte avant publication | vrai calcul local |
+| Banner | la bannière temps réel à l'auteur | **simulation** affichée comme telle — le push ciblé reste à valider sur un vrai site ([validation n° 5](VALIDATION-22.md)) |
+| Budget, Coverage, Space settings | budget de balayage, couverture et angles morts, réglages par espace | données de démo |
+
+Trois écrans sont explicitement des **simulations** (bannière, chat Rovo,
+exécution MCP) : ils montrent le comportement et la forme des réponses, pas une
+intégration live. Les autres tournent sur le vrai code des paquets.
 
 ## Avant de commencer (0 min, en dehors du chrono)
 
-- **Lien d'installation** : *(placeholder Devpost — en attendant, l'app tourne
-  réellement sur le site de démonstration ci-dessous)*.
+- **Lien d'installation Marketplace** : *(placeholder — l'URL de la fiche
+  Marketplace publique, fournie par **Baptiste Faisy** dans la soumission
+  Devpost après le dépôt du listing prévu à partir du 16 décembre 2026 (§28).
+  **À ne jamais inventer.** En attendant, l'app tourne réellement sur le site
+  de démonstration ci-dessous — ce n'est pas une maquette)*.
 - **App installée et vérifiée (12 novembre 2026)** : `Placard for Confluence`,
   app.id `ari:cloud:ecosystem::app/dc47d23f-e4cd-4681-bb64-14ac02ea1c98`
   (Developer Space « laddition »), déployée en v2.0.0 (`forge deploy`,
@@ -31,7 +63,12 @@ site Confluence, sans identifiants. Le chrono ci-dessous, lui, se joue sur
 - **Espace de démonstration semé** : `PLACARDDEMO` sur ce même site —
   <https://one-atlas-cndz.atlassian.net/wiki/spaces/PLACARDDEMO> (faux secrets
   de chaque famille dans chaque gîte, §15 ; accès fourni aux juges sur demande).
-- **Identifiants de démonstration** : *(fournis dans la soumission)*.
+- **Identifiants de démonstration** : *(placeholder — le compte Confluence
+  Cloud donnant un accès en lecture au site ci-dessus et à l'espace semé
+  `PLACARDDEMO`, fourni par **Baptiste Faisy** dans le champ privé de la
+  soumission Devpost (« accès fourni aux juges sur demande »). **À ne jamais
+  inventer.** Aucun secret réel n'est nécessaire : l'app apporte son propre
+  contenu de test)*.
 - Aucun secret réel n'est nécessaire : l'app apporte son propre contenu de test.
 
 ## Minute 0 – 2 · L'espace de démonstration
@@ -134,6 +171,29 @@ Générez le **certificat de l'espace de démonstration** (macro ou page globale
   résolution en cascade (§12) affichée.
 - La vidéo de soumission montre en plus un balayage sur un site réel peuplé
   (§27) — voir [`VIDEO.md`](VIDEO.md) pour le scénario.
+
+## Chiffres vérifiables dans le dépôt
+
+Vérifiables en quelques minutes, sur `main` :
+
+| Chiffre | Valeur | Comment vérifier |
+|---|---|---|
+| Tests automatisés | **298** (34 fichiers) | `pnpm test` |
+| Paquets du monorepo | **8** | `ls packages/` |
+| Modules du manifeste | 21 fonctions, 3 déclencheurs, 1 consumer, 2 déclencheurs planifiés, 1 webtrigger, 4 écrans Confluence, `sql`, `llm`, 13 actions, `rovo:agent`/`rovo:mcp`/`rovo:skill` | `node tools/validate_manifest.mjs` |
+| Tables SQL | **11** | `grep -c 'CREATE TABLE' packages/domain/src/sql.ts` |
+| Outils MCP | **13** | `packages/forge-app/manifest.yml`, section `rovo:mcp` |
+| Familles de détection | **12** (11 étiquettes : `bank-data` couvre IBAN + carte) | `packages/domain/src/vocabulary.ts` |
+| Gîtes | **7** | `packages/domain/src/vocabulary.ts` (`GITES`) |
+| Recette §25 | **10 couvertes, 8 partielles, 0 sans preuve** | [`RECETTE-25.md`](RECETTE-25.md) |
+| Contraintes plateforme | vérifiées par `forge lint` (0 erreur, CLI 15.1.0) | [`VALIDATION-22.md`](VALIDATION-22.md) |
+| Réemploi de `placard` | sous-module épinglé, commit `6664cfc` | `git submodule status` |
+| Site de démo | accessible (HTTP 200, vérifié le 12 novembre 2026) | <https://baptistefaisy.github.io/placard-wiki/> |
+
+Les huit recettes partielles butent toutes sur la même chose : la plateforme
+réelle (API Confluence, Realtime, deux comptes, journalisation réseau) ou un
+écran Forge sans test automatisé. [`RECETTE-25.md`](RECETTE-25.md) nomme, pour
+chaque recette, le paquet, le fichier et le nom exact du test.
 
 Questions, problèmes d'installation : le dépôt
 [`BaptisteFaisy/placard-wiki`](https://github.com/BaptisteFaisy/placard-wiki)

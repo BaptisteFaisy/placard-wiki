@@ -212,6 +212,10 @@ function forgePageScans(): ForgeStore['pageScans'] {
         [row.page_id, row.content_hash, row.version_scanned, row.scanned_at, row.detectors_version, row.llm_calls, row.tokens, row.skipped_reason],
       );
     },
+    async listSkipped() {
+      const rows = await select<PageScanRow>('SELECT * FROM page_scan WHERE skipped_reason <> ?', ['']);
+      return rows.map(pageScanFromRow);
+    },
   };
 }
 
@@ -228,6 +232,10 @@ function forgeAttachmentScans(): ForgeStore['attachmentScans'] {
         'INSERT INTO attachment_scan (attachment_id, page_id, filename, mime, size, read_state, skipped_reason, findings_count) VALUES (?,?,?,?,?,?,?,?)',
         [row.attachment_id, row.page_id, row.filename, row.mime, row.size, row.read_state, row.skipped_reason, row.findings_count],
       );
+    },
+    async listSkipped() {
+      const rows = await select<AttachmentScanRow>('SELECT * FROM attachment_scan WHERE read_state <> ?', ['read']);
+      return rows.map(attachmentScanFromRow);
     },
   };
 }

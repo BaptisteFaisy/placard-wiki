@@ -29,6 +29,7 @@ import type {
   AccessPort, ActorContext, JiraPort, OwnerSourcePort, RealtimePort,
   ServiceContext, TeamworkGraphPort,
 } from '../services/ports';
+import { GRAPH_MISSING_RIGHT_CAVEAT } from '../services/owner';
 
 /** Modèle hébergé (§19) — nom exact à valider avec `forge lint`. */
 const LLM_MODEL = 'claude-3-haiku';
@@ -234,7 +235,7 @@ function createGraph(): TeamworkGraphPort {
         void owner;
         return { confidence: 'none' as const, caveat: 'Graphe interrogé mais propriétaire non résolu (droits à valider, §22).' };
       } catch {
-        return { confidence: 'none' as const, caveat: 'Droit manquant sur le Teamwork Graph (§19) : « pas de droit » ≠ « pas de données ».' };
+        return { confidence: 'none' as const, caveat: GRAPH_MISSING_RIGHT_CAVEAT };
       }
     },
   };

@@ -8,9 +8,9 @@ import { FAMILY_LABELS } from '@placard-wiki/domain';
 import type { FoyerState, RegistryRow, SpaceSettings, WikiFamily } from '@placard-wiki/domain';
 import { useLang } from '../i18n.js';
 import type { DictKey } from '../i18n-dict.js';
-import { FOYERS, SPACES, STATE_KEYS } from '../data/demo.js';
-import { REGISTRY_ROWS } from '../data/demo-site.js';
+import { STATE_KEYS } from '../data/labels.js';
 import { settingsAllow } from '../data/settings.js';
+import { usePlacardData } from '../data/placard-data.js';
 import { DangerBadge, FamilyLabel, StateBadge } from '../ui.js';
 
 type SortKey = 'spaceKey' | 'family' | 'state' | 'score' | 'readersHigh' | 'pageTitle';
@@ -30,7 +30,7 @@ const STATE_LIST: FoyerState[] = ['open', 'rotation-attested', 'redacted', 'purg
 const EMPTY_FILTERS: Filters = { space: '', family: '', state: '', minScore: 0 };
 
 /** Applique les filtres (vacuité = neutre) à l'ensemble des lignes. */
-function filterRows(rows: RegistryRow[], f: Filters): RegistryRow[] {
+function filterRows(rows: readonly RegistryRow[], f: Filters): RegistryRow[] {
   return rows.filter(
     (r) =>
       (f.space === '' || r.spaceKey === f.space) &&
@@ -41,14 +41,18 @@ function filterRows(rows: RegistryRow[], f: Filters): RegistryRow[] {
 }
 
 /** Filtre les lignes selon les réglages de chaque espace (PW-24). */
-function applySettings(rows: RegistryRow[], settings?: Record<string, SpaceSettings>): RegistryRow[] {
-  if (!settings) return rows;
-  const fpOf = (foyerId: string): string => FOYERS[foyerId]?.fingerprint ?? '';
-  return rows.filter((row) => settingsAllow(settings[row.spaceKey], row, fpOf));
+function applySettings(
+  rows: readonly RegistryRow[],
+  settings: Record<string, SpaceSettings> | undefined,
+  foyers: Record<string, { fingerprint: string }>,
+): RegistryRow[] {
+  if (!settings) return [...rows];
+  const fpOf = (foyerId: string): string => foyers[foyerId]?.fingerprint ?? '';
+  return rows.filter((row: RegistryRow) => settingsAllow(settings[row.spaceKey], row, fpOf));
 }
 
 /** Trie une copie stable des lignes selon la colonne et la direction. */
-function sortRows(rows: RegistryRow[], sort: SortState): RegistryRow[] {
+function sortRows(rows: readonly RegistryRow[], sort: SortState): RegistryRow[] {
   const dir = sort.dir === 'asc' ? 1 : -1;
   return [...rows].sort((a, b) => {
     const va = a[sort.key];
@@ -134,9 +138,10 @@ interface RegisterProps {
 
 export function RegisterScreen({ onOpenFoyer, settings }: RegisterProps): JSX.Element {
   const { t } = useLang();
+  const { dataset } = usePlacardData();
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [sort, setSort] = useState<SortState>({ key: 'score', dir: 'desc' });
-  const rows = applySettings(REGISTRY_ROWS, settings);
+  const rows = applySettings(dataset.registryRows, settings, dataset.foyers);
   const visible = sortRows(filterRows(rows, filters), sort);
   const toggleSort = (col: SortKey): void => setSort((s) => ({ key: col, dir: s.key === col && s.dir === 'desc' ? 'asc' : 'desc' }));
 
@@ -145,55 +150,74 @@ export function RegisterScreen({ onOpenFoyer, settings }: RegisterProps): JSX.El
       <h2>{t('tabRegister')}</h2>
       <p className="small muted">{t('registerCaption')}</p>
       {settings && <SettingsNote settings={settings} />}
-      <FilterBar filters={filters} setFilters={setFilters} />
+      <FilterBar filters={filters} setFilters={setFilters} spaces={dataset.spaces} />
       <RegistryTable visible={visible} sort={sort} toggleSort={toggleSort} onOpen={onOpenFoyer} />
     </section>
   );
 }
 
 /** Barre de filtres : espace, famille, état, score minimal. */
-function FilterBar({ filters, setFilters }: { filters: Filters; setFilters: (f: Filters) => void }): JSX.Element {
+function FilterBar({
+  filters,
+  setFilters,
+  spaces,
+}: {
+  filters: Filters;
+  setFilters: (f: Filters) => void;
+  spaces: readonly { key: string; fr: string; en: string }[];
+}): JSX.Element {
   const { t, pick } = useLang();
   return (
-    <div className="filter-bar" role="group" aria-label={t('registerCaption')}>
-      <label>
-        {t('filterSpace')}
-        <select value={filters.space} onChange={(e) => setFilters({ ...filters, space: e.target.value })}>
-          <option value="">{t('filterAll')}</option>
-          {SPACES.map((s) => (
-            <option key={s.key} value={s.key}>
-              {pick(s)}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        {t('filterFamily')}
-        <select value={filters.family} onChange={(e) => setFilters({ ...filters, family: e.target.value })}>
-          <option value="">{t('filterAll')}</option>
-          {FAMILY_LIST.map((f) => (
-            <option key={f} value={f}>
-              {pick(FAMILY_LABELS[f])}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        {t('filterState')}
-        <select value={filters.state} onChange={(e) => setFilters({ ...filters, state: e.target.value })}>
-          <option value="">{t('filterAll')}</option>
-          {STATE_LIST.map((s) => (
-            <option key={s} value={s}>
-              {t(STATE_KEYS[s] as DictKey)}
-            </option>
-          ))}
-        </select>
-      </label>
+    <div className="filter-bar" role="group" aria-label={t('filterCaption')}>
+      <FilterSelect
+        label={t('filterSpace')}
+        value={filters.space}
+        onChange={(space) => setFilters({ ...filters, space })}
+        options={spaces.map((s) => ({ value: s.key, label: pick(s) }))}
+        allLabel={t('filterAll')}
+      />
+      <FilterSelect
+        label={t('filterFamily')}
+        value={filters.family}
+        onChange={(family) => setFilters({ ...filters, family })}
+        options={FAMILY_LIST.map((f) => ({ value: f, label: pick(FAMILY_LABELS[f]) }))}
+        allLabel={t('filterAll')}
+      />
+      <FilterSelect
+        label={t('filterState')}
+        value={filters.state}
+        onChange={(state) => setFilters({ ...filters, state })}
+        options={STATE_LIST.map((s) => ({ value: s, label: t(STATE_KEYS[s] as DictKey) }))}
+        allLabel={t('filterAll')}
+      />
       <label>
         {t('filterScore')}
         <input type="number" min={0} max={100} value={filters.minScore} onChange={(e) => setFilters({ ...filters, minScore: Number(e.target.value) || 0 })} />
       </label>
     </div>
+  );
+}
+
+/** Un filtre « liste + toutes les valeurs » — même balisage pour les trois. */
+function FilterSelect(props: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly { value: string; label: string }[];
+  allLabel: string;
+}): JSX.Element {
+  return (
+    <label>
+      {props.label}
+      <select value={props.value} onChange={(e) => props.onChange(e.target.value)}>
+        <option value="">{props.allLabel}</option>
+        {props.options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

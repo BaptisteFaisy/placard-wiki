@@ -8,10 +8,13 @@
  */
 
 import type {
+  AttachmentScanRecord,
   BuildingModel,
   CoverageReport,
   Foyer,
+  PageScanRecord,
   RegistryRow,
+  ScanBudget,
 } from '@placard-wiki/domain';
 import type { ServiceContext } from './ports';
 
@@ -119,19 +122,107 @@ function addDrafts(wing: BuildingModel['wings'][number], foyer: Foyer): void {
   }
 }
 
-/** Couverture (§19) : pièces jointes non lues et pourquoi, angles morts déclarés. */
+/** Angles morts déclarés (§6, §19, PW-29) — affichés même quand rien n'a été balayé. */
+export const DECLARED_BLIND_SPOTS: readonly string[] = [
+  'Whiteboards et bases Confluence : non balayés (PW-29) — angle mort déclaré.',
+  'Captures d’écran : aucun OCR, les secrets d’une image échappent au balayage texte (§24) — angle mort déclaré.',
+  'Modèles de page et description d’espace (gîtes 5 et 7) : hors de la passe de pages (§6) — angle mort déclaré.',
+];
+
+/** Droit du graphe à valider (§12, §22) — déclaré même avant toute résolution. */
+export const GRAPH_RIGHTS_TO_VALIDATE =
+  'read:graph:page:confluence, read:graph:project:atlassian, '
+  + 'read:graph:space:confluence : résolution de propriétaire par le graphe, '
+  + 'un droit par type d’objet (§12, §22).';
+
+/** Marques textuelles d'un droit manquant (§19) — jamais « pas de données ». */
+const MISSING_RIGHT_MARKERS: readonly string[] = [
+  'pas de droit', 'droit manquant', 'droits manquants', 'droits insuffisants',
+];
+
+/** Le texte déclare-t-il un droit manquant, et non une simple absence de données ? */
+export function declaresMissingRight(text: string): boolean {
+  const lowered = text.toLowerCase();
+  return MISSING_RIGHT_MARKERS.some((marker) => lowered.includes(marker));
+}
+
+/** Une ligne de couverture par gîte : lus, non lus, et pourquoi (§14). */
+type GiteCoverage = CoverageReport['perGite'][number];
+
+/** Budget du jour — compteurs de la dernière passe, null si aucune passe. */
+function budgetOfDay(ctx: ServiceContext): Promise<ScanBudget | null> {
+  return ctx.store.budget.get(ctx.clock.now().slice(0, 10));
+}
+
+/** Libellé d'une pièce jointe non lue : nom (ou ARI) + raison (§14, PW-19). */
+function attachmentLabel(record: AttachmentScanRecord): string {
+  const name = record.filename === '' ? record.attachmentId : record.filename;
+  return `${name} — ${record.skippedReason ?? 'raison absente'}`;
+}
+
+/** Gîte 3 — pièces jointes : chaque non-lue est listée avec sa raison. */
+async function attachmentGite(ctx: ServiceContext): Promise<GiteCoverage> {
+  const budget = await budgetOfDay(ctx);
+  const unread = await ctx.store.attachmentScans.listSkipped();
+  const reasons = [...new Set(unread.map(attachmentLabel))];
+  const gite: GiteCoverage = { gite: 'pieces-jointes', scanned: budget?.attachmentsRead ?? 0, skipped: unread.length };
+  return reasons.length === 0 ? gite : { ...gite, reason: reasons.join(' · ') };
+}
+
+/** Libellé d'une page non lue : identifiant + raison (§19). */
+function pageLabel(record: PageScanRecord): string {
+  return `Page ${record.pageId} — ${record.skippedReason ?? 'raison absente'}`;
+}
+
+/** Gîte 1 — corps de page : pages lues = tentées − illisibles, non lues listées. */
+async function pageGite(ctx: ServiceContext): Promise<GiteCoverage> {
+  const budget = await budgetOfDay(ctx);
+  const unread = await ctx.store.pageScans.listSkipped();
+  const attempted = budget?.pagesScanned ?? 0;
+  const gite: GiteCoverage = {
+    gite: 'corps-de-page',
+    scanned: Math.max(0, attempted - unread.length),
+    skipped: unread.length,
+  };
+  return unread.length === 0 ? gite : { ...gite, reason: [...new Set(unread.map(pageLabel))].join(' · ') };
+}
+
+/** Droits manquants du graphe, lus des résolutions de propriétaire (§12, §25.18). */
+async function graphMissingRights(ctx: ServiceContext): Promise<string[]> {
+  const unresolved = await ctx.store.owners.listUnresolved();
+  const lines: string[] = [];
+  for (const pageId of unresolved) {
+    const caveat = (await ctx.store.owners.get(pageId))?.caveat;
+    if (caveat !== undefined && declaresMissingRight(caveat)) {
+      lines.push(`Propriétaire par le graphe — page ${pageId} : ${caveat}`);
+    }
+  }
+  return lines;
+}
+
+/** Pages non lues : droit manquant → droits, sinon angle mort déclaré (§19). */
+async function classifyUnreadPages(ctx: ServiceContext): Promise<{ rights: string[]; blind: string[] }> {
+  const unread = await ctx.store.pageScans.listSkipped();
+  const rights: string[] = [];
+  const blind: string[] = [];
+  for (const record of unread) {
+    const reason = record.skippedReason ?? 'raison absente';
+    (declaresMissingRight(reason) ? rights : blind).push(pageLabel(record));
+  }
+  return { rights, blind };
+}
+
+/**
+ * Couverture (§19) : état réel du store, jamais des compteurs statiques.
+ * « Pas de droit » est distingué de « pas de données » (§25.18), chaque pièce
+ * jointe non lue porte sa raison (§25.17, PW-19) et les angles morts restent
+ * déclarés même quand aucune passe n'a eu lieu.
+ */
 export async function coverageReport(ctx: ServiceContext): Promise<CoverageReport> {
-  const perGite: CoverageReport['perGite'] = [
-    { gite: 'corps-de-page', scanned: 0, skipped: 0 },
-    { gite: 'pieces-jointes', scanned: 0, skipped: 0 },
-  ];
-  const blindSpots = [
-    'Whiteboards et bases Confluence : non balayés (PW-29) — angle mort déclaré.',
-    'Captures d’écran : secrets non détectés par un balayage texte (§24).',
-  ];
-  const missingRights = [
-    'read:graph:document / read:graph:project : résolution de propriétaire par le graphe à valider (§12, §22).',
-  ];
+  const perGite = [await pageGite(ctx), await attachmentGite(ctx)];
+  const unreadPages = await classifyUnreadPages(ctx);
+  const blindSpots = [...DECLARED_BLIND_SPOTS, ...unreadPages.blind];
+  const missingRights = [GRAPH_RIGHTS_TO_VALIDATE, ...await graphMissingRights(ctx), ...unreadPages.rights];
   return { perGite, blindSpots, missingRights };
 }
 

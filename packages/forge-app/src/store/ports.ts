@@ -65,12 +65,16 @@ export interface ExposureRepo {
 export interface PageScanRepo {
   get(pageId: string): Promise<PageScanRecord | null>;
   put(record: PageScanRecord): Promise<void>;
+  /** Pages non lues, avec leur raison — couverture déclarée, jamais masquée (§19). */
+  listSkipped(): Promise<PageScanRecord[]>;
 }
 
 /** Dépôt `attachment_scan` (§20) : pièce jointe lue ou non lue, et pourquoi. */
 export interface AttachmentScanRepo {
   listByPage(pageId: string): Promise<AttachmentScanRecord[]>;
   put(record: AttachmentScanRecord): Promise<void>;
+  /** Pièces jointes non lues, avec leur raison (§14, PW-19) — aucun silence. */
+  listSkipped(): Promise<AttachmentScanRecord[]>;
 }
 
 /** Dépôt `ritual_step` (§20) : l'état des cinq étapes du rituel. */

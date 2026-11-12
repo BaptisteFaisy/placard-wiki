@@ -6,7 +6,6 @@
 import {
   BASE_SCORE_BY_FAMILY,
   SCORE_TERM_BY_ID,
-  REMEDIATION_COST_HOURS,
   computeDanger,
   giteOf,
 } from '@placard-wiki/domain';
@@ -16,7 +15,6 @@ import type {
   ContentField,
   Foyer,
   FoyerLocation,
-  FoyerState,
   OwnerResolution,
   PageExposure,
   PurgeRequest,
@@ -392,19 +390,3 @@ export const PURGE_REQUESTS: Record<string, PurgeRequest[]> = {
   ],
 };
 
-/** Coût de remise en état pour une famille, en heures (fourchette, §8). */
-export function remediationHours(family: WikiFamily): { low: number; high: number } {
-  return REMEDIATION_COST_HOURS[family];
-}
-
-/** Libellé humain d'un état de foyer (utilisé aussi par le registre). */
-export const STATE_KEYS: Record<FoyerState, string> = {
-  open: 'stateOpen',
-  'rotation-attested': 'stateRotationAttested',
-  redacted: 'stateRedacted',
-  'purge-requested': 'statePurgeRequested',
-  purged: 'statePurged',
-  'purge-impossible': 'statePurgeImpossible',
-  sealed: 'stateSealed',
-  dismissed: 'stateDismissed',
-};
