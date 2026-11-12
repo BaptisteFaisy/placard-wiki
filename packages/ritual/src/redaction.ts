@@ -23,8 +23,8 @@
 import type { Foyer, RedactionDiff, RotationAttestation } from '@placard-wiki/domain';
 import type { ContainerType } from '@placard-wiki/domain';
 
-import { canRedact } from './lock.js';
-import type { StoragePort } from './ports.js';
+import { canRedact } from './lock';
+import type { StoragePort } from './ports';
 
 /** Une occurrence de la valeur dans un texte : des positions, jamais la valeur. */
 export interface Occurrence {

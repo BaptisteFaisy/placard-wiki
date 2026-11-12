@@ -4,11 +4,11 @@
  * brancher les SDK Forge sur les ports (`./ports.ts`).
  */
 
-export * from './ports.js';
-export * from './exposure.js';
-export * from './scoring.js';
-export * from './scan-page.js';
-export * from './sweep.js';
-export * from './owner.js';
-export * from './ritual-service.js';
-export * from './registry.js';
+export * from './ports';
+export * from './exposure';
+export * from './scoring';
+export * from './scan-page';
+export * from './sweep';
+export * from './owner';
+export * from './ritual-service';
+export * from './registry';

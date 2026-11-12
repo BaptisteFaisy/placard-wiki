@@ -6,7 +6,7 @@ import {
   OWNER_METHOD_LABELS,
   RITUAL_STEPS,
   giteOf,
-} from './vocabulary.js';
+} from './vocabulary';
 
 describe('vocabulaire du produit (§4, §6)', () => {
   it('les familles couvrent les douze numéros du cahier (§7)', () => {

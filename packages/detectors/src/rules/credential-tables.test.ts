@@ -7,7 +7,7 @@ import {
   RULE_CREDENTIAL_TABLE,
   findCredentialTables,
   tableIsKnownFake,
-} from './credential-tables.js';
+} from './credential-tables';
 
 const rand = prng('tests-credential-tables');
 const SECRET_A = fakeSuspiciousString(rand);

@@ -15,12 +15,12 @@ import type { CachedOracle, LlmOracle } from '@placard-wiki/detectors';
 import { fixedClock, sequenceIds } from '@placard-wiki/ritual';
 import type { ClockPort, IdPort, StoragePort } from '@placard-wiki/ritual';
 
-import { createMemoryStore } from '../store/memory-store.js';
-import type { ForgeStore } from '../store/ports.js';
+import { createMemoryStore } from '../store/memory-store';
+import type { ForgeStore } from '../store/ports';
 import type {
   AccessPort, ActorContext, JiraPort, OwnerSourcePort, RealtimePort,
   ServiceContext, TeamworkGraphPort,
-} from './ports.js';
+} from './ports';
 
 /**
  * Valeur à forme de clé cloud, fabriquée à l'exécution (PLA-N-09 : aucune

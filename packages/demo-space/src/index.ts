@@ -9,9 +9,9 @@
 export const PACKAGE_NAME = '@placard-wiki/demo-space';
 export const PACKAGE_STATUS = 'implemented' as const;
 
-export * from './fixtures/index.js';
-export * from './fixtures/content.js';
-export * from './oracle.js';
-export * from './plan.js';
-export * from './executor.js';
-export * from './seed.js';
+export * from './fixtures/index';
+export * from './fixtures/content';
+export * from './oracle';
+export * from './plan';
+export * from './executor';
+export * from './seed';

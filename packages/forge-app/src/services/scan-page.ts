@@ -22,7 +22,7 @@ import type {
 } from '@placard-wiki/domain';
 import type { WikiDetection, WikiPageMeta } from '@placard-wiki/propagation';
 
-import type { ServiceContext } from './ports.js';
+import type { ServiceContext } from './ports';
 
 /** Version déclarée du moteur de détection (colonne `detectors_version`). */
 export const DETECTORS_VERSION = 'wiki-detectors-1';

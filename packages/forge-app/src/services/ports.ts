@@ -15,7 +15,7 @@ import type {
   OwnerResolution,
   PageExposure,
 } from '@placard-wiki/domain';
-import type { ForgeStore } from '../store/ports.js';
+import type { ForgeStore } from '../store/ports';
 
 /** Source des métadonnées de propriété (§12) — non couverte par wiki-source. */
 export interface OwnerSourcePort {

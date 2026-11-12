@@ -7,13 +7,13 @@
  * `giteOfItem` (règle du domaine, jamais recopiée ici).
  */
 
-import type { ConfluenceClient, AttachmentMeta, AttachmentDownload } from '../api.js';
-import { ConfluenceHttpError } from '../http-client.js';
+import type { ConfluenceClient, AttachmentMeta, AttachmentDownload } from '../api';
+import { ConfluenceHttpError } from '../http-client';
 import {
   MAX_ATTACHMENT_BYTES, REASON_FORBIDDEN, REASON_NOT_TEXT, REASON_TOO_LARGE,
   byteLength, childAri, pageAri,
-} from '../types.js';
-import type { ScannedItem } from '../types.js';
+} from '../types';
+import type { ScannedItem } from '../types';
 
 /** Types média considérés comme textuels (le reste : binaire, non lu, déclaré). */
 const TEXTUAL_MEDIA = new Set([

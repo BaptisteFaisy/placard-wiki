@@ -22,9 +22,10 @@
 
 ## Conventions TypeScript
 
-- ESM strict (`"type": "module"`), résolution **NodeNext** : les imports
-  relatifs portent l'extension `.js` même pour des fichiers `.ts`
-  (`import { x } from './x.js';`).
+- ESM strict (`"type": "module"`), résolution **Bundler** : les imports
+  relatifs sont **sans extension** (`import { x } from './x';`). C'est la
+  forme exigée par le bundler Forge (webpack ne résout pas `./x.js` vers
+  `x.ts` — contrainte mesurée par `forge build`, voir `docs/VALIDATION-22.md`).
 - Les imports de paquets passent par les alias du workspace
   (`@placard/core`, `@placard-wiki/domain`, …) — jamais de chemin relatif
   entre paquets.

@@ -25,7 +25,7 @@ import type {
 import { FAMILY_LABELS } from '@placard-wiki/domain';
 import type { SpaceSettings } from '@placard-wiki/domain';
 
-import type { ForgeStore, ListFoyersQuery } from './ports.js';
+import type { ForgeStore, ListFoyersQuery } from './ports';
 
 /** Toutes les familles du domaine (§7) — pour les réglages par défaut. */
 const ALL_FAMILIES = Object.keys(FAMILY_LABELS) as WikiFamily[];

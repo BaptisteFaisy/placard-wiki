@@ -20,10 +20,10 @@ import {
   type SharingState,
   type WikiFamily,
 } from '@placard-wiki/domain';
-import { callBridge, outcomeNote } from './bridge.js';
-import { FilterRange, FilterSelect, FilterText, type SelectOption } from './form-controls.js';
-import { useI18n, type Lang } from './i18n.js';
-import { EmptyNotice, Loading, ScoreLozenge, StateLozenge } from './widgets.js';
+import { callBridge, outcomeNote } from './bridge';
+import { FilterRange, FilterSelect, FilterText, type SelectOption } from './form-controls';
+import { useI18n, type Lang } from './i18n';
+import { EmptyNotice, Loading, ScoreLozenge, StateLozenge } from './widgets';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 type Head = NonNullable<DynamicTableProps['head']>;

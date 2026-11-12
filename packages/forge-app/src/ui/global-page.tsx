@@ -12,12 +12,12 @@
  */
 
 import { Heading, Inline, Stack, Tab, TabList, TabPanel, Tabs, Text } from '@forge/react';
-import { AdoptionPanel } from './adoption-panel.js';
-import { BuildingPanel } from './building-panel.js';
-import { BudgetPanel } from './budget-panel.js';
-import { useI18n } from './i18n.js';
-import { RegistryPanel } from './registry-panel.js';
-import { LangToggle } from './widgets.js';
+import { AdoptionPanel } from './adoption-panel';
+import { BuildingPanel } from './building-panel';
+import { BudgetPanel } from './budget-panel';
+import { useI18n } from './i18n';
+import { RegistryPanel } from './registry-panel';
+import { LangToggle } from './widgets';
 
 /** En-tête de la page : nom, promesse, bascule de langue accessible. */
 function PageHeader(): JSX.Element {

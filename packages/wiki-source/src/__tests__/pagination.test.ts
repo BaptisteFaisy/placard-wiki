@@ -5,10 +5,10 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { createFixtureClient, loadFixtureData } from '../fixture-client.js';
-import { cqlFullTranche, cqlIncremental, cqlOnDemandPage, cqlQuote, searchPaginated } from '../cql.js';
-import { deserializeCursor, serializeCursor, toSweepCursor } from '../cursor.js';
-import { paginate } from '../cursor.js';
+import { createFixtureClient, loadFixtureData } from '../fixture-client';
+import { cqlFullTranche, cqlIncremental, cqlOnDemandPage, cqlQuote, searchPaginated } from '../cql';
+import { deserializeCursor, serializeCursor, toSweepCursor } from '../cursor';
+import { paginate } from '../cursor';
 
 const client = createFixtureClient(loadFixtureData());
 

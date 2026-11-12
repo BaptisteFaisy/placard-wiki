@@ -20,12 +20,12 @@ import { chat } from '@forge/llm';
 import { appEvents } from '@forge/events';
 import type { ClockPort, IdPort, StoragePort } from '@placard-wiki/ritual';
 
-import { createForgeStore } from '../store/forge-store.js';
-import type { ForgeStore } from '../store/ports.js';
+import { createForgeStore } from '../store/forge-store';
+import type { ForgeStore } from '../store/ports';
 import type {
   AccessPort, ActorContext, JiraPort, OwnerSourcePort, RealtimePort,
   ServiceContext, TeamworkGraphPort,
-} from '../services/ports.js';
+} from '../services/ports';
 
 /** Modèle hébergé (§19) — nom exact à valider avec `forge lint`. */
 const LLM_MODEL = 'claude-3-haiku';

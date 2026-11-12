@@ -24,10 +24,10 @@ import {
   RULE_ATTACHMENT_ENTROPY,
   findWikiRiskyExtension,
   isHighEntropyBlob,
-} from './rules/attachments.js';
-import { findConnectionStrings } from './rules/connection-strings.js';
-import { findCredentialTables, tableIsKnownFake } from './rules/credential-tables.js';
-import type { DetectionCandidate, ScanItem, VendorEngine, WikiScanDeps } from './types.js';
+} from './rules/attachments';
+import { findConnectionStrings } from './rules/connection-strings';
+import { findCredentialTables, tableIsKnownFake } from './rules/credential-tables';
+import type { DetectionCandidate, ScanItem, VendorEngine, WikiScanDeps } from './types';
 
 /** Borne du nombre de candidats par élément (budget §14, anti-contenu hostile). */
 const MAX_CANDIDATES_PER_ITEM = 200;

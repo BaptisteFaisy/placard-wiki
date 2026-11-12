@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { RITUAL_STEPS } from '@placard-wiki/domain';
 
-import { REDACT_LOCK_REASON, canRedact, ritualStepStates, stepsInOrder } from './lock.js';
-import { makeAttestation, makeFoyer } from './test-support.js';
+import { REDACT_LOCK_REASON, canRedact, ritualStepStates, stepsInOrder } from './lock';
+import { makeAttestation, makeFoyer } from './test-support';
 
 /** Recette §25.7 (PW-09) : l'étape 2 est verrouillée sans attestation humaine. */
 describe('canRedact — verrou PW-09', () => {

@@ -19,8 +19,8 @@ import {
   modelePageXml,
   pagePartageeXml,
   titreSecret,
-} from './content.js';
-import { MARQUE_SYNTHETIQUE, fixturesDuGite } from './index.js';
+} from './content';
+import { MARQUE_SYNTHETIQUE, fixturesDuGite } from './index';
 
 const corps = fixturesDuGite('corps-de-page');
 const commentaires = fixturesDuGite('commentaires');

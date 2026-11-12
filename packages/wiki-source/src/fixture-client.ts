@@ -12,8 +12,8 @@ import type {
   AttachmentDownload, AttachmentMeta, CqlResultPage, CommentItem, ConfluenceClient,
   ConfluencePage, PageRestrictions, SharingState, SpaceDescription,
   SpacePermissionEntry, TemplateMeta, VersionContent, VersionSummary,
-} from './api.js';
-import { MAX_ATTACHMENT_BYTES, REASON_NOT_TEXT, REASON_TOO_LARGE } from './types.js';
+} from './api';
+import { MAX_ATTACHMENT_BYTES, REASON_NOT_TEXT, REASON_TOO_LARGE } from './types';
 
 /** Forme du fichier de fixtures — tout est optionnel sauf les pages. */
 export interface FixtureData {

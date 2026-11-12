@@ -16,7 +16,7 @@
 
 import type { Foyer } from '@placard-wiki/domain';
 
-import type { WikiPageMeta } from './detection.js';
+import type { WikiPageMeta } from './detection';
 
 /** Fenêtre de « créations rapprochées » pour l'heuristique H3 (jours). */
 export const FENETRE_JUMELLES_JOURS = 7;

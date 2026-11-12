@@ -8,9 +8,9 @@ import {
   certificate,
   contentHashOf,
   verifyCertificate,
-} from './certificate.js';
-import type { CertificateCounters } from './certificate.js';
-import { fixedClock } from './ports.js';
+} from './certificate';
+import type { CertificateCounters } from './certificate';
+import { fixedClock } from './ports';
 
 /** Recette §25.16 : le certificat chiffre tout, et son intégrité est un HMAC-SHA-256 du JSON canonique. */
 

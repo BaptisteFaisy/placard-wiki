@@ -22,17 +22,17 @@ export type {
   VendorEngine,
   VendorRawDetection,
   WikiScanDeps,
-} from './types.js';
+} from './types';
 
-export { createWikiScanner, scanItem } from './scan.js';
+export { createWikiScanner, scanItem } from './scan';
 
 export {
   RULE_CONNECTION_JDBC_PARAM,
   RULE_CONNECTION_URI,
   findConnectionStrings,
   isRealisticPassword,
-} from './rules/connection-strings.js';
-export type { ConnectionMatch } from './rules/connection-strings.js';
+} from './rules/connection-strings';
+export type { ConnectionMatch } from './rules/connection-strings';
 
 export {
   MAX_STRUCTURE_CHARS,
@@ -40,8 +40,8 @@ export {
   RULE_CREDENTIAL_TABLE,
   findCredentialTables,
   tableIsKnownFake,
-} from './rules/credential-tables.js';
-export type { TableMatch } from './rules/credential-tables.js';
+} from './rules/credential-tables';
+export type { TableMatch } from './rules/credential-tables';
 
 export {
   BINARY_ENTROPY_THRESHOLD,
@@ -50,15 +50,15 @@ export {
   isAttachmentOfInterest,
   isHighEntropyBlob,
   screenshotBlindSpot,
-} from './rules/attachments.js';
-export type { BlindSpot, WikiExtensionMatch } from './rules/attachments.js';
+} from './rules/attachments';
+export type { BlindSpot, WikiExtensionMatch } from './rules/attachments';
 
 export {
   ORACLE_SYSTEM_PROMPT_FR,
   buildQuestion,
   createCachedOracle,
   maskSpans,
-} from './llm-oracle.js';
+} from './llm-oracle';
 export type {
   CachedOracle,
   LlmOracle,
@@ -67,4 +67,4 @@ export type {
   OracleAnswer,
   OracleCacheOptions,
   OracleStats,
-} from './llm-oracle.js';
+} from './llm-oracle';

@@ -13,7 +13,7 @@ import { BRIDGE_METHODS } from '@placard-wiki/domain';
 import type { BridgeMethod, Foyer } from '@placard-wiki/domain';
 import { visibleTo } from '@placard-wiki/exposure';
 
-import { getServiceContext } from './runtime/context.js';
+import { getServiceContext } from './runtime/context';
 import {
   adoptionList,
   applyRedactionService,
@@ -28,8 +28,8 @@ import {
   registryRows,
   requestPurge,
   runSweep,
-} from './services/index.js';
-import type { ServiceContext } from './services/ports.js';
+} from './services/index';
+import type { ServiceContext } from './services/ports';
 
 const resolverInstance = new Resolver();
 

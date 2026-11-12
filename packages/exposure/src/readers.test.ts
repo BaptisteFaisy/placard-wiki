@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { readersRange, READERS_METHOD_FR, type ReadersInput } from './readers.js';
+import { readersRange, READERS_METHOD_FR, type ReadersInput } from './readers';
 
 function baseInput(overrides: Partial<ReadersInput> = {}): ReadersInput {
   return {

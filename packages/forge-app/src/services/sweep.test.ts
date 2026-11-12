@@ -8,8 +8,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { runSweep } from './sweep.js';
-import { FAKE_CLOUD_KEY, PAGE_ID, SPACE_KEY, makeTestContext } from './test-support.js';
+import { runSweep } from './sweep';
+import { FAKE_CLOUD_KEY, PAGE_ID, SPACE_KEY, makeTestContext } from './test-support';
 
 describe('runSweep — balayage à la demande (§14)', () => {
   it('détecte la clé factice et ouvre un foyer (empreinte + aperçu masqué)', async () => {

@@ -5,9 +5,9 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { fausseCleAws, empreinteDe, makeDetection, makePage } from './fixtures.js';
-import { groupIntoFoyers } from './group.js';
-import { propagationTimeline } from './timeline.js';
+import { fausseCleAws, empreinteDe, makeDetection, makePage } from './fixtures';
+import { groupIntoFoyers } from './group';
+import { propagationTimeline } from './timeline';
 
 function foyerPropagé() {
   const cle = fausseCleAws('recette-timeline');

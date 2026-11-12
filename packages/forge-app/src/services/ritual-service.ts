@@ -29,8 +29,8 @@ import type {
   RotationAttestation,
 } from '@placard-wiki/domain';
 
-import type { ServiceContext } from './ports.js';
-import { resolveOwner } from './owner.js';
+import type { ServiceContext } from './ports';
+import { resolveOwner } from './owner';
 
 /** Reconstruit l'attestation d'un foyer depuis ses champs persistés (§9). */
 function attestationFromFoyer(foyer: Foyer, actorRef: string): RotationAttestation | undefined {

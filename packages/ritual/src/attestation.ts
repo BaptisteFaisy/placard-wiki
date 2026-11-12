@@ -12,7 +12,7 @@
 
 import type { RotationAttestation } from '@placard-wiki/domain';
 
-import type { ClockPort } from './ports.js';
+import type { ClockPort } from './ports';
 
 /** Les huit fournisseurs du rituel (§9) — liste fermée, `generic` compris. */
 export const ROTATION_PROVIDERS = [

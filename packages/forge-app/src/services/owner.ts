@@ -13,7 +13,7 @@
  */
 
 import type { OwnerResolution } from '@placard-wiki/domain';
-import type { ServiceContext } from './ports.js';
+import type { ServiceContext } from './ports';
 
 /** Demande d'accès au graphe documentée, à valider (§12, §22). */
 export const GRAPH_ACCESS_NOTE =

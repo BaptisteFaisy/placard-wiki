@@ -9,7 +9,7 @@
 
 import type { Foyer } from '@placard-wiki/domain';
 
-import type { ClockPort } from './ports.js';
+import type { ClockPort } from './ports';
 
 export interface RibbonInput {
   foyerId: string;
