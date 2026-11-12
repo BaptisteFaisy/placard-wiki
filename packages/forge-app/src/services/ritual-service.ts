@@ -17,8 +17,13 @@ import {
   attachRibbon,
   redactionPreview as redactionPreviewPure,
   ritualStepStates,
+  executePurge,
+  verifyPurge,
+  decidePurgeRequest,
+  sealFoyer,
+  NO_PURGE_CLIENT_REASON,
 } from '@placard-wiki/ritual';
-import type { RedactionSource } from '@placard-wiki/ritual';
+import type { RedactionSource, PurgeDecision, PurgeTarget, PurgeHistoryParams } from '@placard-wiki/ritual';
 import type {
   Certificate,
   Foyer,
@@ -31,6 +36,19 @@ import type {
 
 import type { ServiceContext } from './ports';
 import { resolveOwner } from './owner';
+
+/** La demande de purge, et ce que l'app a pu en faire. */
+export interface PurgeServiceResult {
+  request: PurgeRequest;
+  /** Ce que l'API permet : mesuré, `true` — la suppression d'une version répond 204. */
+  apiCanPurge: boolean;
+  /** L'app a-t-elle exécuté la purge elle-même ? */
+  executed: boolean;
+  /** La purge est-elle **vérifiée** (la version n'est plus lisible) ? */
+  verified: boolean;
+  /** La raison exacte quand le foyer reste ouvert — jamais vide. */
+  reason: string;
+}
 
 /** Reconstruit l'attestation d'un foyer depuis ses champs persistés (§9). */
 function attestationFromFoyer(foyer: Foyer, actorRef: string): RotationAttestation | undefined {
@@ -143,31 +161,233 @@ export async function applyRedactionService(
   return { applied: result.applied, versionComment: result.versionComment, asUser: result.asUser };
 }
 
-/** Étape 3 — purge d'historique (demande à l'admin, foyer ouvert, §9). */
+/** Les cibles de purge : les emplacements « version » du foyer, ou une liste donnée. */
+function purgeTargets(foyer: Foyer, pageId?: string, versionNumbers?: readonly number[]): PurgeTarget[] {
+  if (versionNumbers !== undefined && pageId !== undefined) {
+    return [{ pageId, versionNumbers: [...versionNumbers] }];
+  }
+  return foyer.locations
+    .filter((l) => l.containerType === 'version' && l.versionNumber !== undefined)
+    .map((l) => ({ pageId: l.pageId, versionNumbers: [l.versionNumber as number] }));
+}
+
+/** Le port de purge de l'app : absent = l'app ne peut ni purger ni vérifier. */
+function purgePortsOf(ctx: ServiceContext): NonNullable<ServiceContext['purge']> {
+  return ctx.purge ?? {};
+}
+
+/** La branche « l'app n'a pas les droits » : demande groupée, foyer ouvert. */
+async function requestPurgeBlocked(
+  ctx: ServiceContext,
+  foyer: Foyer,
+  targets: PurgeTarget[],
+  probe: { canPurge: boolean; reason: string },
+  params: PurgeHistoryParams,
+): Promise<PurgeServiceResult> {
+  const outcome = purgeHistory(foyer, targets, true, false, params);
+  for (const request of outcome.requests) await ctx.store.purgeRequests.put(request);
+  const updated: Foyer = { ...foyer, state: outcome.foyerState };
+  await ctx.store.saveFoyer(updated);
+  await persistSteps(ctx, updated);
+  return {
+    request: outcome.requests[0] as PurgeRequest,
+    apiCanPurge: true,
+    executed: false,
+    verified: false,
+    reason: probe.reason,
+  };
+}
+
+/** La branche « l'app a les droits » : purge, puis vérification. */
+async function requestPurgeExecute(
+  ctx: ServiceContext,
+  foyer: Foyer,
+  pageId: string,
+  versionNumbers: readonly number[],
+  ports: NonNullable<ServiceContext['purge']>,
+  params: PurgeHistoryParams,
+): Promise<PurgeServiceResult> {
+  const execution = await executePurge(pageId, versionNumbers, ports.client!);
+  const verification = ports.reader === undefined
+    ? null
+    : await verifyPurge(pageId, versionNumbers, ports.reader, {
+      ...(ports.fingerprint === undefined ? {} : { fingerprint: ports.fingerprint }),
+      staysOpenState: 'purge-requested',
+    });
+  const verified = verification?.verified === true;
+  const reason = !execution.complete
+    ? `La purge n’a pas abouti : ${execution.failures.map((f) => `version ${String(f.versionNumber)} — HTTP ${String(f.status)} (${f.reason})`).join(' ; ')}`
+    : verification === null
+      ? 'La purge a été exécutée mais l’app ne peut pas la vérifier (identité de l’app : 401 sur l’historique).'
+      : verification.reason;
+  const updated: Foyer = { ...foyer, state: verified ? 'purged' : 'purge-requested' };
+  await ctx.store.saveFoyer(updated);
+  await persistSteps(ctx, updated);
+  const outcome = purgeHistory(foyer, purgeTargets(foyer, pageId, versionNumbers), true, true, params);
+  for (const request of outcome.requests) {
+    await ctx.store.purgeRequests.put(verified ? { ...request, state: 'done' } : request);
+  }
+  return {
+    request: outcome.requests[0] as PurgeRequest,
+    apiCanPurge: true,
+    executed: true,
+    verified,
+    reason,
+  };
+}
+
+/**
+ * Étape 3 — purge d'historique (§9).
+ *
+ * Ce que l'API permet vraiment (mesuré le 12 novembre 2026) : la suppression
+ * d'une version précise **est possible** (`DELETE …/version/{n}` → 204) — mais
+ * l'identité de l'app Forge reçoit 401 sur l'historique (sonde en direct). Donc :
+ *
+ * - l'app a les droits → elle purge, puis elle **vérifie** : « purgé » seulement
+ *   si la version n'est plus lisible ; sinon le foyer reste ouvert, raison à l'appui ;
+ * - l'app n'a pas les droits → la demande groupée à l'administrateur, avec la
+ *   raison **mesurée** (« HTTP 401… »), et le foyer reste ouvert.
+ */
 export async function requestPurge(
   ctx: ServiceContext,
   foyerId: string,
   pageId?: string,
   versionNumbers?: readonly number[],
-): Promise<{ request: PurgeRequest; apiCanPurge: boolean }> {
+): Promise<PurgeServiceResult> {
   const foyer = (await ctx.store.getFoyer(foyerId)) as Foyer;
-  const targets = versionNumbers === undefined || pageId === undefined
-    ? foyer.locations
-        .filter((l) => l.containerType === 'version' && l.versionNumber !== undefined)
-        .map((l) => ({ pageId: l.pageId, versionNumbers: [l.versionNumber as number] }))
-    : [{ pageId, versionNumbers: [...versionNumbers] }];
-  // §22 : la purge d'une version précise depuis Forge est à valider semaine 1.
-  // En l'état, l'app ne purge jamais elle-même : demande groupée à l'administrateur.
-  const outcome = purgeHistory(foyer, targets, false, false, {
+  const targets = purgeTargets(foyer, pageId, versionNumbers);
+  const ports = purgePortsOf(ctx);
+  const probe = ports.client === undefined
+    ? { canPurge: false as const, reason: NO_PURGE_CLIENT_REASON }
+    : await ports.client.probe();
+  const params = {
     requestedByRef: ctx.actor().accountId ?? 'app',
     clock: ctx.clock,
     ids: ctx.ids,
+    // La raison mesurée remplace le libellé générique : l'export CSV la porte.
+    blockedReason: probe.reason,
+  };
+  if (!probe.canPurge) {
+    return requestPurgeBlocked(ctx, foyer, targets, probe, params);
+  }
+  return requestPurgeExecute(ctx, foyer, targets[0]?.pageId ?? '', versionNumbers ?? [], ports, params);
+}
+
+/** La décision de l'administrateur sur une demande, et son effet sur le foyer. */
+export interface PurgeDecisionInput {
+  ids: string[];
+  decision: PurgeDecision;
+  adminRef?: string;
+  motive?: string;
+}
+
+/** Le résultat d'une décision : ce qui a changé, et ce qui reste ouvert. */
+export interface PurgeDecisionOutcome {
+  applied: number;
+  refused: number;
+  /** Les demandes refusées par la décision (raison écrite). */
+  errors: string[];
+  /** Les foyers passés à « purgé » — la purge a été **vérifiée**. */
+  verified: number;
+  /** Les foyers restés ouverts, avec la raison exacte. */
+  stillOpen: string[];
+}
+
+/**
+ * Applique la décision de l'administrateur (§9) : reconnaissance, refus motivé,
+ * ou purge déclarée faite — auquel cas l'app **vérifie** avant de dire « purgé ».
+ */
+export async function applyPurgeDecision(
+  ctx: ServiceContext,
+  input: PurgeDecisionInput,
+): Promise<PurgeDecisionOutcome> {
+  const out: PurgeDecisionOutcome = { applied: 0, refused: 0, errors: [], verified: 0, stillOpen: [] };
+  for (const id of input.ids) {
+    const request = await ctx.store.purgeRequests.get(id);
+    if (request === null) {
+      out.errors.push(`Demande inconnue : ${id}`);
+      continue;
+    }
+    const decision = decidePurgeRequest(request, input.decision, {
+      ...(input.adminRef === undefined ? {} : { adminRef: input.adminRef }),
+      ...(input.motive === undefined ? {} : { motive: input.motive }),
+    });
+    if (!decision.ok || decision.request === undefined) {
+      out.errors.push(`${id} : ${decision.reason ?? 'décision refusée'}`);
+      continue;
+    }
+    const next = decision.request;
+    await ctx.store.purgeRequests.put(next);
+    out.applied += 1;
+    if (input.decision === 'refused') {
+      out.refused += 1;
+      continue;
+    }
+    if (input.decision !== 'done') continue;
+    const check = await verifyRequest(ctx, next);
+    if (check.verified) {
+      out.verified += 1;
+    } else {
+      out.stillOpen.push(check.reason);
+    }
+  }
+  return out;
+}
+
+/** Vérifie une demande déclarée faite : « purgé » seulement si la version a disparu. */
+async function verifyRequest(ctx: ServiceContext, request: PurgeRequest): Promise<{ verified: boolean; reason: string }> {
+  const ports = purgePortsOf(ctx);
+  const foyer = await ctx.store.getFoyer(request.foyerId);
+  if (foyer === null) return { verified: false, reason: 'Foyer introuvable : la purge reste non vérifiée.' };
+  if (ports.reader === undefined) {
+    const reason =
+      'La purge est déclarée faite, mais l’app ne peut pas la vérifier ' +
+      '(l’identité de l’app reçoit 401 sur l’historique) : le foyer reste ouvert.';
+    await ctx.store.saveFoyer({ ...foyer, state: 'purge-requested' });
+    return { verified: false, reason };
+  }
+  const verification = await verifyPurge(request.pageId, request.versionNumbers, ports.reader, {
+    ...(ports.fingerprint === undefined ? {} : { fingerprint: ports.fingerprint }),
+    staysOpenState: 'purge-requested',
   });
-  for (const request of outcome.requests) await ctx.store.purgeRequests.put(request);
-  const updated: Foyer = { ...foyer, state: outcome.foyerState };
+  if (!verification.verified) {
+    await ctx.store.saveFoyer({ ...foyer, state: 'purge-requested' });
+    return { verified: false, reason: verification.reason };
+  }
+  await ctx.store.saveFoyer({ ...foyer, state: 'purged' });
+  await persistSteps(ctx, { ...foyer, state: 'purged' });
+  return { verified: true, reason: 'La version visée n’est plus lisible : la purge est vérifiée.' };
+}
+
+/**
+ * Le sceau de cire (§9) : rotation attestée + caviardage + purge vérifiée
+ * **ou** purge impossible documentée. Les deux bases sont distinctes et le
+ * registre les garde distinctes.
+ */
+export async function sealFoyerService(
+  ctx: ServiceContext,
+  foyerId: string,
+  purge: { verified?: boolean; impossibleReason?: string } = {},
+): Promise<{ ok: true; basis: string; note: string } | { ok: false; reason: string }> {
+  const foyer = await ctx.store.getFoyer(foyerId);
+  if (foyer === null) return { ok: false, reason: 'Foyer introuvable.' };
+  const attestation = attestationFromFoyer(foyer, foyer.rotatedAt ?? '');
+  const outcome = sealFoyer({
+    foyer,
+    ...(attestation === undefined ? {} : { attestation }),
+    ...(purge.verified === undefined ? {} : { purgeVerified: purge.verified }),
+    ...(purge.impossibleReason === undefined ? {} : { purgeImpossibleReason: purge.impossibleReason }),
+  });
+  if (!outcome.ok) return { ok: false, reason: outcome.reason };
+  const updated: Foyer = { ...foyer, state: 'sealed' };
   await ctx.store.saveFoyer(updated);
-  await persistSteps(ctx, updated);
-  return { request: outcome.requests[0] as PurgeRequest, apiCanPurge: outcome.apiCanPurge };
+  const steps = ritualStepStates(updated, attestation);
+  for (const step of steps) {
+    await ctx.store.ritualSteps.put(
+      step.step === 'purge' ? { ...step, attestationRef: outcome.basis } : step,
+    );
+  }
+  return { ok: true, basis: outcome.basis, note: outcome.note };
 }
 
 /** Étape 1 — ticket Jira de réparation, assigné au propriétaire résolu (§9). */

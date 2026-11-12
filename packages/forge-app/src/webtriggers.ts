@@ -23,6 +23,9 @@ import { Queue } from '@forge/events';
 
 import { getServiceContext, probeConfluence } from './runtime/context';
 import { buildingModel, coverageReport, generateCertificate, maskText, registryRows, runSweep } from './services/index';
+import { applyPurgeDecision } from './services/ritual-service';
+import { purgeRequestLines, purgeRequestsCsv } from '@placard-wiki/ritual';
+import type { PurgeDecision } from '@placard-wiki/ritual';
 import type { ServiceContext } from './services/ports';
 import type {
   BuildingModel, Certificate, CoverageReport, Foyer, RegistryRow, ScanBudget,
@@ -70,6 +73,10 @@ interface AdminPurgeLine {
   fingerprint: string;
   requestedAt: string;
   state: string;
+  /** Raison de l'impossibilité, ou motif du refus. */
+  reason: string;
+  /** Référence de l'administrateur, quand il y en a une. */
+  adminRef?: string;
 }
 
 /** Construit la liste exacte à présenter à l'administrateur. */
@@ -78,7 +85,7 @@ async function pendingLines(ctx: ServiceContext): Promise<AdminPurgeLine[]> {
   const lines: AdminPurgeLine[] = [];
   for (const request of pending) {
     const foyer = await ctx.store.getFoyer(request.foyerId);
-    lines.push({
+    const line: AdminPurgeLine = {
       id: request.id,
       foyerId: request.foyerId,
       pageId: request.pageId,
@@ -86,34 +93,73 @@ async function pendingLines(ctx: ServiceContext): Promise<AdminPurgeLine[]> {
       fingerprint: foyer?.fingerprint ?? '',
       requestedAt: request.requestedAt,
       state: request.state,
-    });
+      reason: request.blockedReason ?? 'Demande de purge d’historique.',
+    };
+    if (request.adminRef !== undefined) line.adminRef = request.adminRef;
+    lines.push(line);
   }
   return lines;
 }
 
-/** Marque des demandes comme reconnues (POST, corps `{ ids: string[] }`). */
-async function acknowledge(ctx: ServiceContext, body: string | undefined): Promise<{ acknowledged: number }> {
-  let ids: string[] = [];
+/**
+ * L'export CSV : une ligne par page et par numéro de version, avec l'empreinte,
+ * la famille et la raison. **Aucune valeur brute** (§9).
+ */
+async function purgeCsv(ctx: ServiceContext): Promise<string> {
+  const requests = await ctx.store.purgeRequests.listAll();
+  const foyers = new Map<string, Foyer>();
+  for (const request of requests) {
+    if (foyers.has(request.foyerId)) continue;
+    const foyer = await ctx.store.getFoyer(request.foyerId);
+    if (foyer !== null) foyers.set(request.foyerId, foyer);
+  }
+  return purgeRequestsCsv(purgeRequestLines(requests, foyers));
+}
+
+/** Le corps de la décision POST : `{ ids, decision, adminRef?, motive? }`. */
+interface PurgeDecisionBody {
+  ids: string[];
+  decision: PurgeDecision;
+  adminRef?: string;
+  motive?: string;
+}
+
+/** Lit la décision POST — corps illisible = refus explicite, jamais un silence. */
+function readDecision(body: string | undefined): PurgeDecisionBody {
+  let parsed: { ids?: unknown; decision?: unknown; adminRef?: unknown; motive?: unknown } = {};
   try {
-    const parsed = JSON.parse(body ?? '{}') as { ids?: unknown };
-    if (Array.isArray(parsed.ids)) ids = parsed.ids.filter((x): x is string => typeof x === 'string');
+    parsed = JSON.parse(body ?? '{}') as typeof parsed;
   } catch {
-    ids = [];
+    parsed = {};
   }
-  let acknowledged = 0;
-  for (const id of ids) {
-    await ctx.store.purgeRequests.markState(id, 'acknowledged');
-    acknowledged += 1;
-  }
-  return { acknowledged };
+  const ids = Array.isArray(parsed.ids)
+    ? parsed.ids.filter((id): id is string => typeof id === 'string')
+    : [];
+  const decision = parsed.decision;
+  const out: PurgeDecisionBody = {
+    ids,
+    decision: decision === 'acknowledged' || decision === 'refused' || decision === 'done' ? decision : 'acknowledged',
+  };
+  if (typeof parsed.adminRef === 'string') out.adminRef = parsed.adminRef;
+  if (typeof parsed.motive === 'string') out.motive = parsed.motive;
+  return out;
 }
 
 export async function purgeRequestHook(request: WebtriggerRequest): Promise<WebtriggerResponse> {
   const ctx = await getServiceContext();
   console.info(`[placard] purge-request-hook ${request.method} ${request.path}`);
   if (request.method === 'POST') {
-    const result = await acknowledge(ctx, request.body);
+    const decision = readDecision(request.body);
+    const result = await applyPurgeDecision(ctx, decision);
     return { statusCode: 200, headers: JSON_HEADERS, body: JSON.stringify(result) };
+  }
+  // `?format=csv` : l'export que l'administrateur traite en une fois.
+  if (request.queryParameters?.['format']?.[0] === 'csv') {
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': ['text/csv; charset=utf-8'] },
+      body: await purgeCsv(ctx),
+    };
   }
   const lines = await pendingLines(ctx);
   return {
@@ -122,6 +168,8 @@ export async function purgeRequestHook(request: WebtriggerRequest): Promise<Webt
     body: JSON.stringify({
       count: lines.length,
       requests: lines,
+      csv: 'Ajouter ?format=csv à cette même URL pour exporter la liste exploitable.',
+      decisions: 'POST { ids, decision: acknowledged|refused|done, adminRef?, motive? } — un refus exige son motif.',
       honesty:
         'Tant que ces versions n’ont pas été purgées et vérifiées, les foyers restent ouverts ' +
         'et leur exposition reste élevée (§9). Aucune valeur brute ne figure dans cette demande.',

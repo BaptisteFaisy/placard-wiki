@@ -6,6 +6,7 @@ import {
   BLOCKED_NO_VERSIONS,
   adminPurgeBrief,
   foyerResteOuvert,
+  planPurgeOrder,
   purgeHistory,
 } from './purge';
 import type { PurgeTarget } from './purge';
@@ -88,5 +89,21 @@ describe('foyerResteOuvert', () => {
     expect(foyerResteOuvert('purge-impossible')).toBe(true);
     expect(foyerResteOuvert('purged')).toBe(false);
     expect(foyerResteOuvert('sealed')).toBe(false);
+  });
+});
+
+describe('planPurgeOrder — la renumérotation mesurée', () => {
+  it('supprime du plus ancien au plus récent, décalage compensé', () => {
+    // Mesuré : après la suppression de la version n, les versions postérieures
+    // sont renumérotées. Purgée {2,4} en ordre croissant → 2 puis 4-1=3.
+    expect(planPurgeOrder([4, 2])).toEqual([2, 3]);
+  });
+
+  it('une purge de préfixe se réduit à la version la plus ancienne, répétée', () => {
+    expect(planPurgeOrder([1, 2, 3])).toEqual([1, 1, 1]);
+  });
+
+  it('ignore les numéros invalides (négatifs, non entiers, doublons)', () => {
+    expect(planPurgeOrder([3, 3, 0, -1, 2])).toEqual([2, 2]);
   });
 });

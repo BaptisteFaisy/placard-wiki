@@ -267,6 +267,15 @@ function forgePurgeRequests(): ForgeStore['purgeRequests'] {
       const rows = await select<PurgeRequestRow>("SELECT * FROM purge_request WHERE state = 'requested'", []);
       return rows.map(purgeRequestFromRow);
     },
+    async listAll() {
+      const rows = await select<PurgeRequestRow>('SELECT * FROM purge_request', []);
+      return rows.map(purgeRequestFromRow);
+    },
+    async get(id: string) {
+      const rows = await select<PurgeRequestRow>('SELECT * FROM purge_request WHERE id = ? LIMIT 1', [id]);
+      const row = rows[0];
+      return row === undefined ? null : purgeRequestFromRow(row);
+    },
     async put(request: PurgeRequest) {
       const row = purgeRequestToRow(request);
       await mutate('DELETE FROM purge_request WHERE id = ?', [row.id]);

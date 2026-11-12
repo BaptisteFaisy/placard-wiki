@@ -16,9 +16,11 @@ import { createCachedOracle, ORACLE_SYSTEM_PROMPT_FR } from '@placard-wiki/detec
 import type { CachedOracle, LlmOracle, LlmOracleQuestion, LlmOracleVerdict } from '@placard-wiki/detectors';
 import { chat } from '@forge/llm';
 import { appEvents } from '@forge/events';
+import { createHmac } from 'node:crypto';
 import type { ClockPort, IdPort, StoragePort } from '@placard-wiki/ritual';
 
 import { createForgeConfluence } from './confluence';
+import { appPurgeClient, appVersionReader } from './purge';
 import { createForgeStore, readOrCreateAppSecret } from '../store/forge-store';
 import type { ForgeStore } from '../store/ports';
 import {
@@ -310,6 +312,12 @@ async function buildContext(): Promise<ServiceContext> {
     realtime: createRealtime(),
     jira: createJira(),
     access: createAccess(confluence, currentActor),
+    purge: {
+      client: appPurgeClient(),
+      reader: appVersionReader(),
+      fingerprint: (content: string) =>
+        `hmac256:${createHmac('sha256', hmac.key).update(content).digest('hex')}`,
+    },
     actor: currentActor,
   };
 }

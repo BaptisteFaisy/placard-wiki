@@ -207,6 +207,12 @@ function memoryPurgeRequests(s: MemoryState): ForgeStore['purgeRequests'] {
     async listPending() {
       return [...s.purgeRequests.values()].filter((r) => r.state === 'requested');
     },
+    async listAll() {
+      return [...s.purgeRequests.values()];
+    },
+    async get(id: string) {
+      return s.purgeRequests.get(id) ?? null;
+    },
     async put(request: PurgeRequest) {
       s.purgeRequests.set(request.id, request);
     },
