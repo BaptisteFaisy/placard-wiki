@@ -1,5 +1,6 @@
 export * from './vocabulary';
 export * from './types';
+export * from './ai-verdict';
 export * from './score-terms';
 export * from './sql';
 export * from './bridge';
