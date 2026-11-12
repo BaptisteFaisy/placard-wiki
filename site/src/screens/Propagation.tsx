@@ -6,17 +6,17 @@
 import { useMemo, useState } from 'react';
 import { propagationTimeline, redactionOrder } from '@placard-wiki/propagation';
 import type { PropagationTimeline } from '@placard-wiki/propagation';
-import { PAGES_META, PROP_EXPOSURE, PROP_TITLES, PROPAGATION_FOYERS } from '../data/pages-meta.js';
-import { TITLES } from '../data/demo-site.js';
 import { useLang } from '../i18n.js';
+import { usePlacardData } from '../data/placard-data.js';
+import type { PropagationEntry } from '../data/dataset.js';
 import { formatDate, GiteLabel } from '../ui.js';
 
 const MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 const MOIS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-/** Titre d'une page de la démo (registre ou étude de cas PROP-1). */
-function titleOf(pageId: string): string {
-  return TITLES[pageId] ?? PROP_TITLES[pageId] ?? pageId;
+/** Titre d'une page (registre,Propagation ou étude de cas PROP-1). */
+function titleOf(pageId: string, titles: Record<string, string>, propTitles: Record<string, string>): string {
+  return titles[pageId] ?? propTitles[pageId] ?? pageId;
 }
 
 /** Mois lisible d'une date ISO, dans la langue courante. */
@@ -43,17 +43,17 @@ function Summary({ timeline }: { timeline: PropagationTimeline }): JSX.Element {
 }
 
 /** Timeline datée : source présumée, puis chaque recopie et son heuristique. */
-function Timeline({ timeline }: { timeline: PropagationTimeline }): JSX.Element {
+function Timeline({ timeline, titles, propTitles }: { timeline: PropagationTimeline; titles: Record<string, string>; propTitles: Record<string, string> }): JSX.Element {
   const { t, lang } = useLang();
   const source = timeline.sourcePageId ?? '';
   return (
     <ol className="prop-timeline">
       <li className="prop-source">
-        <strong>{t('propSource')}</strong> — {titleOf(source)} <code>({source})</code>
+        <strong>{t('propSource')}</strong> — {titleOf(source, titles, propTitles)} <code>({source})</code>
       </li>
       {timeline.copies.map((copy) => (
         <li key={copy.pageId} className={copy.byPageDuplication ? 'prop-copy prop-dup' : 'prop-copy'}>
-          {titleOf(copy.pageId)} <code>({copy.pageId})</code> — {formatDate(copy.copiedAt, lang)}
+          {titleOf(copy.pageId, titles, propTitles)} <code>({copy.pageId})</code> — {formatDate(copy.copiedAt, lang)}
           {copy.heuristique && (
             <span className="badge state" title={t('propHeuristic')}>
               {' '}
@@ -67,13 +67,13 @@ function Timeline({ timeline }: { timeline: PropagationTimeline }): JSX.Element 
 }
 
 /** Graphe simple des emplacements : la source, puis ses recopies. */
-function LocationGraph({ timeline }: { timeline: PropagationTimeline }): JSX.Element {
+function LocationGraph({ timeline, titles, propTitles }: { timeline: PropagationTimeline; titles: Record<string, string>; propTitles: Record<string, string> }): JSX.Element {
   const { t } = useLang();
   const source = timeline.sourcePageId ?? '';
   return (
     <div className="prop-graph" role="img" aria-label={`${t('propGraph')} : ${source} → ${timeline.copies.map((c) => c.pageId).join(', ')}`}>
       <div className="prop-node prop-node-source">
-        {titleOf(source)}
+        {titleOf(source, titles, propTitles)}
         <br />
         <code>{source}</code>
       </div>
@@ -87,7 +87,7 @@ function LocationGraph({ timeline }: { timeline: PropagationTimeline }): JSX.Ele
       <ul className="prop-leaves">
         {timeline.copies.map((copy) => (
           <li key={copy.pageId} className="prop-node">
-            {titleOf(copy.pageId)}
+            {titleOf(copy.pageId, titles, propTitles)}
             <br />
             <code>{copy.pageId}</code>
             {copy.byPageDuplication && <span className="badge state"> dup</span>}
@@ -99,18 +99,19 @@ function LocationGraph({ timeline }: { timeline: PropagationTimeline }): JSX.Ele
 }
 
 /** Lot de caviardage : ordre du VRAI `redactionOrder`, modèle en premier. */
-function BatchOrder({ foyerId }: { foyerId: string }): JSX.Element {
+function BatchOrder(props: { foyerId: string; entries: readonly PropagationEntry[]; exposure: ReadonlyMap<string, number>; titles: Record<string, string>; propTitles: Record<string, string> }): JSX.Element {
   const { t, lang } = useLang();
-  const entry = PROPAGATION_FOYERS.find((candidate) => candidate.id === foyerId);
+  const { foyerId, entries, exposure, titles, propTitles } = props;
+  const entry = entries.find((candidate) => candidate.id === foyerId);
   if (!entry) return <p>{t('noFoyer')}</p>;
-  const order = redactionOrder(entry.foyer, foyerId === 'PROP-1' ? PROP_EXPOSURE : undefined);
+  const order = redactionOrder(entry.foyer, exposure);
   return (
     <section aria-label={t('propBatch')}>
       <h3>{t('propBatch')}</h3>
       <ol className="prop-batch">
         {order.orderedLocations.map((location, index) => (
           <li key={location.id}>
-            <strong>{String(index + 1)}.</strong> <GiteLabel gite={location.gite} /> — {titleOf(location.pageId)}{' '}
+            <strong>{String(index + 1)}.</strong> <GiteLabel gite={location.gite} /> — {titleOf(location.pageId, titles, propTitles)}{' '}
             <code>({location.pageId})</code>
             {location.versionNumber !== undefined && (
               <span className="muted"> · {t('historyVersion').replace('{v}', String(location.versionNumber))}</span>
@@ -131,11 +132,14 @@ function BatchOrder({ foyerId }: { foyerId: string }): JSX.Element {
 
 export function PropagationScreen(): JSX.Element {
   const { t } = useLang();
-  const [foyerId, setFoyerId] = useState<string>('PROP-1');
-  const entry = PROPAGATION_FOYERS.find((candidate) => candidate.id === foyerId);
+  const { dataset } = usePlacardData();
+  const entries = dataset.propagationFoyers;
+  const [chosen, setChosen] = useState<string>('');
+  const foyerId = entries.some((candidate) => candidate.id === chosen) ? chosen : entries[0]?.id ?? '';
+  const entry = entries.find((candidate) => candidate.id === foyerId);
   const timeline = useMemo(
-    () => (entry ? propagationTimeline(entry.foyer, PAGES_META) : null),
-    [entry],
+    () => (entry ? propagationTimeline(entry.foyer, dataset.pagesMeta) : null),
+    [entry, dataset.pagesMeta],
   );
 
   return (
@@ -145,8 +149,8 @@ export function PropagationScreen(): JSX.Element {
       <label className="field-label" htmlFor="prop-select">
         {t('propSelect')}
       </label>
-      <select id="prop-select" value={foyerId} onChange={(e) => setFoyerId(e.target.value)}>
-        {PROPAGATION_FOYERS.map((candidate) => (
+      <select id="prop-select" value={foyerId} onChange={(e) => setChosen(e.target.value)}>
+        {entries.map((candidate) => (
           <option key={candidate.id} value={candidate.id}>
             {candidate.id} — {candidate.foyer.family} — {candidate.foyer.fingerprint.slice(0, 12)}…
           </option>
@@ -156,13 +160,13 @@ export function PropagationScreen(): JSX.Element {
         <>
           <h3>{t('propSummary')}</h3>
           {timeline && <Summary timeline={timeline} />}
-          {timeline && <Timeline timeline={timeline} />}
-          {timeline && <LocationGraph timeline={timeline} />}
+          {timeline && <Timeline timeline={timeline} titles={dataset.titles} propTitles={dataset.propTitles} />}
+          {timeline && <LocationGraph timeline={timeline} titles={dataset.titles} propTitles={dataset.propTitles} />}
           <details>
             <summary>{t('propPackageOut')}</summary>
             <pre className="json-out">{timeline ? JSON.stringify(timeline, null, 2) : ''}</pre>
           </details>
-          <BatchOrder foyerId={foyerId} />
+          <BatchOrder foyerId={foyerId} entries={entries} exposure={dataset.propExposure} titles={dataset.titles} propTitles={dataset.propTitles} />
           <p className="small muted">{t('propNoActor')}</p>
         </>
       )}

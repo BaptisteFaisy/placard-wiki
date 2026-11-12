@@ -2,9 +2,8 @@
 // Navigation clavier + pointeur : la lanterne (focus) suit la sélection.
 
 import { useState } from 'react';
-import { FOYERS } from '../data/demo.js';
-import { BUILDING, TITLES } from '../data/demo-site.js';
 import { useLang } from '../i18n.js';
+import { usePlacardData } from '../data/placard-data.js';
 import { layoutBuilding, ROOM_H } from '../building-layout.js';
 import type { RoomBox, WingBox } from '../building-layout.js';
 
@@ -16,14 +15,13 @@ function svgDanger(score: number): string {
 }
 
 /** Page → foyer : chaque emplacement du foyer pointe vers sa page. */
-function buildPageFoyer(): Record<string, string> {
+function buildPageFoyer(foyers: Record<string, { id: string; locations: ReadonlyArray<{ pageId: string }> }>): Record<string, string> {
   const map: Record<string, string> = {};
-  for (const foyer of Object.values(FOYERS)) {
+  for (const foyer of Object.values(foyers)) {
     for (const loc of foyer.locations) map[loc.pageId] = foyer.id;
   }
   return map;
 }
-const PAGE_FOYER = buildPageFoyer();
 
 /** Tronque un titre trop long pour la pièce, sans casser la largeur. */
 function trimTitle(title: string, width: number): string {
@@ -32,7 +30,7 @@ function trimTitle(title: string, width: number): string {
 }
 
 /** Corps de la pièce : murs, titre, audience, briques si orpheline. */
-function RoomBody({ box }: { box: RoomBox }): JSX.Element {
+function RoomBody({ box, titles }: { box: RoomBox; titles: Record<string, string> }): JSX.Element {
   const { room } = box;
   return (
     <g>
@@ -46,7 +44,7 @@ function RoomBody({ box }: { box: RoomBox }): JSX.Element {
         </g>
       )}
       <text x={box.x + 6} y={box.y + 18} fontSize="10" fontWeight="600" fill="#14161f">
-        {trimTitle(TITLES[room.pageId] ?? room.title, box.w)}
+        {trimTitle(titles[room.pageId] ?? room.title, box.w)}
       </text>
       <text x={box.x + 6} y={box.y + 32} fontSize="9" fill="#33363f">
         {room.audience}
@@ -125,16 +123,18 @@ function CellarIcon({ box }: { box: RoomBox }): JSX.Element {
 interface RoomProps {
   box: RoomBox;
   selected: boolean;
+  pageFoyer: Record<string, string>;
+  titles: Record<string, string>;
   onSelect: (pageId: string) => void;
   onOpen: (foyerId: string) => void;
 }
 
 /** Une pièce interactive : lueur, corps, porte, fenêtre, affiche, sceau, ruban, cave. */
-function RoomNode({ box, selected, onSelect, onOpen }: RoomProps): JSX.Element {
+function RoomNode({ box, selected, pageFoyer, titles, onSelect, onOpen }: RoomProps): JSX.Element {
   const { room } = box;
-  const foyerId = PAGE_FOYER[room.pageId];
+  const foyerId = pageFoyer[room.pageId];
   const glow = svgDanger(room.maxDanger);
-  const label = `${TITLES[room.pageId] ?? room.title} — ${room.audience} viewers — ${room.maxDanger}/100`;
+  const label = `${titles[room.pageId] ?? room.title} — ${room.audience} viewers — ${room.maxDanger}/100`;
   return (
     <g
       role="button"
@@ -156,7 +156,7 @@ function RoomNode({ box, selected, onSelect, onOpen }: RoomProps): JSX.Element {
         <rect x={box.x + 6} y={box.y + box.h - 4} width={box.w - 12} height={10} rx={5} fill={glow} opacity="0.85" aria-hidden="true" />
       )}
       <g stroke={selected ? '#ffe082' : undefined} strokeWidth={selected ? 3 : undefined}>
-        <RoomBody box={box} />
+        <RoomBody box={box} titles={titles} />
       </g>
       <DoorIcon box={box} />
       <WindowIcon box={box} />
@@ -214,8 +214,10 @@ interface BuildingProps {
 
 export function BuildingScreen({ onOpenFoyer }: BuildingProps): JSX.Element {
   const { t } = useLang();
+  const { dataset } = usePlacardData();
   const [selected, setSelected] = useState<string>('');
-  const layout = layoutBuilding(BUILDING);
+  const layout = layoutBuilding(dataset.building);
+  const pageFoyer = buildPageFoyer(dataset.foyers);
 
   return (
     <section className="screen">
@@ -224,7 +226,7 @@ export function BuildingScreen({ onOpenFoyer }: BuildingProps): JSX.Element {
       <div className="building-wrap">
         <svg role="img" aria-label={t('tabBuilding')} viewBox={`0 0 ${layout.width} ${layout.height}`} className="building-svg">
           {layout.wings.map((wing) => (
-            <WingGroup key={wing.spaceKey} wing={wing} selected={selected} onSelect={setSelected} onOpen={onOpenFoyer} />
+            <WingGroup key={wing.spaceKey} wing={wing} selected={selected} pageFoyer={pageFoyer} titles={dataset.titles} onSelect={setSelected} onOpen={onOpenFoyer} />
           ))}
           {layout.wings.map((wing) => (
             <DraftEdges key={wing.spaceKey} wing={wing} />
@@ -258,17 +260,19 @@ function LegendItem({ item }: { item: { key: string; swatch: string } }): JSX.El
 function WingGroup(props: {
   wing: WingBox;
   selected: string;
+  pageFoyer: Record<string, string>;
+  titles: Record<string, string>;
   onSelect: (id: string) => void;
   onOpen: (id: string) => void;
 }): JSX.Element {
-  const { wing, selected, onSelect, onOpen } = props;
+  const { wing, selected, pageFoyer, titles, onSelect, onOpen } = props;
   return (
     <g>
       <text x={wing.x + 8} y={2} fontSize="11" fontWeight="700" fill="#e8e6df">
         {wing.spaceKey}
       </text>
       {wing.rooms.map((box) => (
-        <RoomNode key={box.room.pageId} box={box} selected={selected === box.room.pageId} onSelect={onSelect} onOpen={onOpen} />
+        <RoomNode key={box.room.pageId} box={box} selected={selected === box.room.pageId} pageFoyer={pageFoyer} titles={titles} onSelect={onSelect} onOpen={onOpen} />
       ))}
     </g>
   );

@@ -1,13 +1,14 @@
 // Certificat (§9, §18 écran 8) : daté, chiffré, scellé par empreinte.
 // Jamais de valeur brute — chiffres et angles morts déclarés seulement.
 
-import { CERTIFICATE } from '../data/demo-site.js';
 import { useLang } from '../i18n.js';
+import { usePlacardData } from '../data/placard-data.js';
 import { formatDate } from '../ui.js';
 
 export function CertificateScreen(): JSX.Element {
   const { t, lang } = useLang();
-  const c = CERTIFICATE;
+  const { dataset } = usePlacardData();
+  const c = dataset.certificate;
   return (
     <section className="screen">
       <h2>{t('certTitle')}</h2>

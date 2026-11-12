@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Foyer, SpaceSettings } from '@placard-wiki/domain';
 import { LangProvider, useLang } from './i18n.js';
 import type { DictKey } from './i18n-dict.js';
-import { FOYERS } from './data/demo.js';
-import { INITIAL_SETTINGS } from './data/settings.js';
+import { PlacardDataProvider, usePlacardData } from './data/placard-data.js';
+import type { PlacardDataset } from './data/dataset.js';
+import { LiveStatusBanner } from './components/LiveStatusBanner.js';
 import { HomeScreen } from './screens/Home.js';
 import { RegisterScreen } from './screens/Register.js';
 import { BuildingScreen } from './screens/Building.js';
@@ -65,13 +66,13 @@ function LangToggle(): JSX.Element {
   );
 }
 
-/** Le foyer sélectionné par défaut : un vrai foyer de la démo. */
+/** Le foyer sélectionné par défaut : le premier connu du dataset courant. */
 const FIRST_FOYER_ID = 'F-1';
 
 /** Tout ce dont le contenu d'onglet a besoin (navigation + état partagé). */
 interface TabContentProps {
   tab: Tab;
-  foyer: Foyer;
+  foyer: Foyer | undefined;
   setFoyerId: (id: string) => void;
   setTab: (tab: Tab) => void;
   settings: Record<string, SpaceSettings>;
@@ -92,9 +93,9 @@ function TabContent(props: TabContentProps): JSX.Element | null {
     case 'building':
       return <BuildingScreen onOpenFoyer={openFoyer} />;
     case 'foyer':
-      return <FoyerSheetScreen foyer={props.foyer} onSelectFoyer={props.setFoyerId} />;
+      return props.foyer ? <FoyerSheetScreen foyer={props.foyer} onSelectFoyer={props.setFoyerId} /> : <p className="muted">—</p>;
     case 'ritual':
-      return <RitualScreen foyer={props.foyer} />;
+      return props.foyer ? <RitualScreen foyer={props.foyer} /> : <p className="muted">—</p>;
     case 'certificate':
       return <CertificateScreen />;
     case 'budget':
@@ -126,14 +127,29 @@ function TabContent(props: TabContentProps): JSX.Element | null {
   }
 }
 
+/** Les réglages d'espace suivent la source : au passage en live, les espaces
+ *  réels remplacent ceux de la démo (les éditions locales repartent à zéro). */
+function useSpaceSettings(dataset: PlacardDataset): [Record<string, SpaceSettings>, (s: Record<string, SpaceSettings>) => void] {
+  const [settings, setSettings] = useState<Record<string, SpaceSettings>>({ ...dataset.initialSettings });
+  const settingsKey = `${dataset.source}:${Object.keys(dataset.initialSettings).join(',')}`;
+  useEffect(() => {
+    setSettings({ ...dataset.initialSettings });
+  }, [settingsKey]);
+  return [settings, setSettings];
+}
+
 /** Corps de l'application : navigation + contenu de l'onglet actif. */
 function Shell(): JSX.Element {
   const { t } = useLang();
+  const { dataset, status } = usePlacardData();
   const [tab, setTab] = useState<Tab>('home');
   const [foyerId, setFoyerId] = useState<string>(FIRST_FOYER_ID);
-  const [settings, setSettings] = useState<Record<string, SpaceSettings>>({ ...INITIAL_SETTINGS });
+  const [settings, setSettings] = useSpaceSettings(dataset);
 
-  const foyer = FOYERS[foyerId] ?? FOYERS[FIRST_FOYER_ID]!;
+  const foyers = dataset.foyers;
+  const fallback = foyers[FIRST_FOYER_ID] ?? Object.values(foyers)[0];
+  const foyer: Foyer | undefined = foyers[foyerId] ?? fallback;
+  const live = status === 'live';
 
   return (
     <>
@@ -141,8 +157,9 @@ function Shell(): JSX.Element {
         <h1>{t('appTitle')}</h1>
         <LangToggle />
       </header>
+      <LiveStatusBanner />
       <p className="synthetic-banner" role="status">
-        {t('synthetic')} — {t('syntheticNote')}
+        {live ? t('syntheticLive') : t('synthetic')} — {live ? t('liveDemoSiteNote') : t('syntheticNote')}
       </p>
       <nav className="tabs" role="tablist" aria-label={t('appTitle')}>
         {TABS.map((k) => (
@@ -169,11 +186,13 @@ function Shell(): JSX.Element {
   );
 }
 
-/** Racine du site : provider de langue + coquille applicative. */
+/** Racine du site : providers (langue + données) puis coquille applicative. */
 export function App(): JSX.Element {
   return (
     <LangProvider>
-      <Shell />
+      <PlacardDataProvider>
+        <Shell />
+      </PlacardDataProvider>
     </LangProvider>
   );
 }

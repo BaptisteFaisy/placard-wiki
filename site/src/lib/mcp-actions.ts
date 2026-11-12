@@ -13,7 +13,7 @@ import { fixedClock } from '@placard-wiki/ritual/src/ports.js';
 import type { StoragePort } from '@placard-wiki/ritual/src/ports.js';
 import type { Foyer, RotationAttestation } from '@placard-wiki/domain';
 import type { RedactionSource } from '@placard-wiki/ritual/src/redaction.js';
-import { FOYERS, OWNERS } from '../data/demo.js';
+import type { PlacardDataset } from '../data/dataset.js';
 import { asJson } from './mcp-run.js';
 import type { ActorKind, JsonValue, McpSession } from './mcp-run.js';
 
@@ -97,8 +97,8 @@ function recordRotation(args: Record<string, string>, actorKind: ActorKind, sess
 }
 
 /** `request-redaction` — diff masqué proposé ; verrou sans attestation. */
-function requestRedaction(args: Record<string, string>, session: McpSession): JsonValue {
-  const foyer = FOYERS[args.findingId ?? ''];
+function requestRedaction(args: Record<string, string>, session: McpSession, data: PlacardDataset): JsonValue {
+  const foyer = data.foyers[args.findingId ?? ''];
   if (!foyer) return { error: 'finding-introuvable', findingId: args.findingId ?? '' };
   const attestation = attestationFor(foyer, session);
   if (!canRedact(foyer, attestation)) return { ok: false, reason: REDACT_LOCK_REASON };
@@ -108,8 +108,8 @@ function requestRedaction(args: Record<string, string>, session: McpSession): Js
 }
 
 /** `apply-redaction` — application asUser() ; VERROU sans attestation humaine. */
-async function applyRedactionTool(args: Record<string, string>, session: McpSession): Promise<JsonValue> {
-  const foyer = FOYERS[args.findingId ?? ''];
+async function applyRedactionTool(args: Record<string, string>, session: McpSession, data: PlacardDataset): Promise<JsonValue> {
+  const foyer = data.foyers[args.findingId ?? ''];
   if (!foyer) return { error: 'finding-introuvable', findingId: args.findingId ?? '' };
   const writes: Array<{ pageId: string; asUser: string }> = [];
   const result = await applyRedaction(
@@ -133,11 +133,11 @@ function dismissFinding(args: Record<string, string>): JsonValue {
 }
 
 /** `open-remediation-ticket` — vraie charge utile Jira, ticket synthétique. */
-function openTicket(args: Record<string, string>): JsonValue {
-  const foyer = FOYERS[args.findingId ?? ''];
+function openTicket(args: Record<string, string>, data: PlacardDataset): JsonValue {
+  const foyer = data.foyers[args.findingId ?? ''];
   if (!foyer) return { error: 'finding-introuvable', findingId: args.findingId ?? '' };
   const projectKey = args.projectKey ?? 'SEC';
-  const owner = OWNERS[foyer.primaryPageId ?? ''];
+  const owner = data.owners[foyer.primaryPageId ?? ''];
   const payload = jiraTicketPayload(foyer, owner, projectKey);
   return { syntheticTicketKey: `${projectKey}-417`, url: `https://example.atlassian.net/browse/${projectKey}-417 (synthétique)`, payload: asJson(payload) };
 }
@@ -148,13 +148,14 @@ export async function runAction(
   args: Record<string, string>,
   actorKind: ActorKind,
   session: McpSession,
+  data: PlacardDataset,
 ): Promise<JsonValue> {
   switch (toolKey) {
     case 'record-rotation': return recordRotation(args, actorKind, session);
-    case 'request-redaction': return requestRedaction(args, session);
-    case 'apply-redaction': return applyRedactionTool(args, session);
+    case 'request-redaction': return requestRedaction(args, session, data);
+    case 'apply-redaction': return applyRedactionTool(args, session, data);
     case 'dismiss-finding': return dismissFinding(args);
-    case 'open-remediation-ticket': return openTicket(args);
+    case 'open-remediation-ticket': return openTicket(args, data);
     default: return { error: 'outil-inconnu', toolKey };
   }
 }

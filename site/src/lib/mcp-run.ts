@@ -1,17 +1,19 @@
-// Exécuteur SIMULÉ des outils MCP (§17) sur le jeu de démo — réponses JSON
-// exactes : empreintes + aperçus masqués, jamais de valeur brute (PW-04).
+// Exécuteur SIMULÉ des outils MCP (§17) — réponses JSON exactes : empreintes
+// + aperçus masqués, jamais de valeur brute (PW-04).
 // Maximum de vrai code : `ritualStepStates` et `redactionOrder` viennent des
 // paquets réels ; `check-text` est un VRAI calcul local (lib/check-text.ts +
 // empreinte WebCrypto). Les outils d'écriture sont dans lib/mcp-actions.ts.
+//
+// Les lectures portent sur le DATASET (live si disponible, snapshot sinon) :
+// l'écran ne sait jamais d'où viennent les données.
 
 import { ritualStepStates } from '@placard-wiki/ritual/src/lock.js';
 import { redactionOrder } from '@placard-wiki/propagation';
 import type { Foyer, FoyerLocation } from '@placard-wiki/domain';
-import { EXPOSURES, FOYERS, OWNERS, PURGE_REQUESTS } from '../data/demo.js';
-import { CERTIFICATE } from '../data/demo-site.js';
 import { checkText } from './check-text.js';
 import { hmacFingerprint } from './fingerprint.js';
 import { runAction } from './mcp-actions.js';
+import type { PlacardDataset } from '../data/dataset.js';
 
 /** Valeur JSON — aucune échappatoire `any`, union explicite. */
 export type JsonValue =
@@ -72,17 +74,17 @@ function foyerJson(foyer: Foyer): { readonly [key: string]: JsonValue } {
 }
 
 /** `scan-page` : foyers de la page, famille, empreinte, danger et termes. */
-function scanPage(args: Record<string, string>): JsonValue {
+function scanPage(args: Record<string, string>, data: PlacardDataset): JsonValue {
   const pageId = args.pageId ?? '';
-  const foyers = Object.values(FOYERS).filter((f) => f.locations.some((l) => l.pageId === pageId));
+  const foyers = Object.values(data.foyers).filter((f) => f.locations.some((l) => l.pageId === pageId));
   return { pageId, foyerCount: foyers.length, foyers: foyers.map(foyerJson) };
 }
 
 /** `scan-space` : balayage borné — état d'avancement et curseur de reprise. */
-function scanSpace(args: Record<string, string>): JsonValue {
+function scanSpace(args: Record<string, string>, data: PlacardDataset): JsonValue {
   const spaceKey = args.spaceKey ?? '';
   const limit = Math.max(1, Number(args.limit ?? '10'));
-  const foyers = Object.values(FOYERS).filter((f) => f.spaceKey === spaceKey);
+  const foyers = Object.values(data.foyers).filter((f) => f.spaceKey === spaceKey);
   return {
     spaceKey,
     mode: 'incremental',
@@ -96,10 +98,10 @@ function scanSpace(args: Record<string, string>): JsonValue {
 }
 
 /** `list-exposed-secrets` : foyers triés par danger, filtres optionnels. */
-function listExposed(args: Record<string, string>): JsonValue {
+function listExposed(args: Record<string, string>, data: PlacardDataset): JsonValue {
   const minScore = Number(args.minScore ?? '0');
   const limit = Math.max(1, Number(args.limit ?? '10'));
-  const foyers = Object.values(FOYERS)
+  const foyers = Object.values(data.foyers)
     .filter((f) => (args.spaceKey === '' || args.spaceKey === undefined || f.spaceKey === args.spaceKey))
     .filter((f) => args.state === '' || args.state === undefined || f.state === args.state)
     .filter((f) => f.score >= minScore)
@@ -109,11 +111,12 @@ function listExposed(args: Record<string, string>): JsonValue {
 }
 
 /** `get-finding` : emplacements, rituel (vrai calcul), exposition, termes. */
-function getFinding(args: Record<string, string>, session: McpSession): JsonValue {
-  const foyer = FOYERS[args.findingId ?? ''];
+function getFinding(args: Record<string, string>, session: McpSession, data: PlacardDataset): JsonValue {
+  const foyer = data.foyers[args.findingId ?? ''];
   if (!foyer) return { error: 'finding-introuvable', findingId: args.findingId ?? '' };
   const pageId = foyer.primaryPageId ?? foyer.locations[0]?.pageId ?? '';
-  const exposure = EXPOSURES[pageId];
+  const exposure = data.exposures[pageId];
+  const owner = data.owners[pageId];
   return {
     ...foyerJson(foyer),
     locations: foyer.locations.map(locationJson),
@@ -126,15 +129,15 @@ function getFinding(args: Record<string, string>, session: McpSession): JsonValu
           aiSurfacePresumedIndexed: exposure.aiSurface.presumedIndexed,
         }
       : null,
-    owner: OWNERS[pageId] ? { ownerRef: OWNERS[pageId]!.ownerRef ?? null, method: OWNERS[pageId]!.method } : null,
-    purgeRequests: asJson(PURGE_REQUESTS[foyer.id] ?? []),
+    owner: owner ? { ownerRef: owner.ownerRef ?? null, method: owner.method } : null,
+    purgeRequests: asJson(data.purgeRequests[foyer.id] ?? []),
   };
 }
 
 /** `trace-fingerprint` : tous les emplacements, dans l'ordre du lot (§11). */
-function traceFingerprint(args: Record<string, string>): JsonValue {
+function traceFingerprint(args: Record<string, string>, data: PlacardDataset): JsonValue {
   const fingerprint = args.fingerprint ?? '';
-  const foyer = Object.values(FOYERS).find((f) => f.fingerprint === fingerprint);
+  const foyer = Object.values(data.foyers).find((f) => f.fingerprint === fingerprint);
   if (!foyer) return { error: 'empreinte-inconnue', fingerprint };
   const order = redactionOrder(foyer);
   return {
@@ -148,13 +151,13 @@ function traceFingerprint(args: Record<string, string>): JsonValue {
 }
 
 /** `get-exposure` : fourchette + méthode, partage, restrictions, surface IA. */
-function getExposure(args: Record<string, string>): JsonValue {
-  const exposure = EXPOSURES[args.pageId ?? ''];
+function getExposure(args: Record<string, string>, data: PlacardDataset): JsonValue {
+  const exposure = data.exposures[args.pageId ?? ''];
   if (!exposure) return { error: 'page-inconnue', pageId: args.pageId ?? '' };
   return {
     pageId: exposure.pageId,
     readers: { low: exposure.readers.low, high: exposure.readers.high },
-    method: 'Fourchette — permissions de l’espace + restrictions + partage (§8).',
+    method: exposure.readers.method,
     sharing: exposure.sharing,
     restrictions: exposure.restrictions.map((r) => `${r.type}:${r.name}`),
     aiSurface: { presumedIndexed: exposure.aiSurface.presumedIndexed, hypothesis: true },
@@ -181,37 +184,39 @@ async function checkTextTool(args: Record<string, string>): Promise<JsonValue> {
 }
 
 /** `get-certificate` : résumé daté et chiffré — chiffres, jamais de valeur. */
-function getCertificate(): JsonValue {
+function getCertificate(data: PlacardDataset): JsonValue {
+  const c = data.certificate;
   return {
-    id: CERTIFICATE.id,
-    scope: CERTIFICATE.scope,
-    issuedAt: CERTIFICATE.issuedAt,
-    open: CERTIFICATE.open,
-    rotated: CERTIFICATE.rotated,
-    redacted: CERTIFICATE.redacted,
-    purged: CERTIFICATE.purged,
-    residualExposure: CERTIFICATE.residualExposure,
-    blindSpots: CERTIFICATE.blindSpots,
-    contentHash: CERTIFICATE.contentHash,
+    id: c.id,
+    scope: c.scope,
+    issuedAt: c.issuedAt,
+    open: c.open,
+    rotated: c.rotated,
+    redacted: c.redacted,
+    purged: c.purged,
+    residualExposure: c.residualExposure,
+    blindSpots: c.blindSpots,
+    contentHash: c.contentHash,
   };
 }
 
-/** Exécute un outil MCP sur le jeu de démo et renvoie la réponse JSON. */
+/** Exécute un outil MCP sur le dataset et renvoie la réponse JSON. */
 export async function runTool(
   toolKey: string,
   args: Record<string, string>,
   actorKind: ActorKind,
   session: McpSession,
+  data: PlacardDataset,
 ): Promise<JsonValue> {
   switch (toolKey) {
-    case 'scan-page': return scanPage(args);
-    case 'scan-space': return scanSpace(args);
-    case 'list-exposed-secrets': return listExposed(args);
-    case 'get-finding': return getFinding(args, session);
-    case 'trace-fingerprint': return traceFingerprint(args);
-    case 'get-exposure': return getExposure(args);
-    case 'get-certificate': return getCertificate();
+    case 'scan-page': return scanPage(args, data);
+    case 'scan-space': return scanSpace(args, data);
+    case 'list-exposed-secrets': return listExposed(args, data);
+    case 'get-finding': return getFinding(args, session, data);
+    case 'trace-fingerprint': return traceFingerprint(args, data);
+    case 'get-exposure': return getExposure(args, data);
+    case 'get-certificate': return getCertificate(data);
     case 'check-text': return checkTextTool(args);
-    default: return runAction(toolKey, args, actorKind, session);
+    default: return runAction(toolKey, args, actorKind, session, data);
   }
 }

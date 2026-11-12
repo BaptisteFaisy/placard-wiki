@@ -1,8 +1,9 @@
 // Budget & couverture (§14, §18 écran 6) : pages balayées, pièces jointes
 // non lues ET pourquoi, angles morts, appels LLM. Couverture déclarée.
 
-import { BUDGET, COVERAGE_BLIND_SPOTS } from '../data/demo-site.js';
+import type { ScanBudget } from '@placard-wiki/domain';
 import { useLang } from '../i18n.js';
+import { usePlacardData } from '../data/placard-data.js';
 
 /** Formate une durée en millisecondes pour l'affichage (lisible). */
 function formatMs(ms: number): string {
@@ -13,25 +14,26 @@ function formatMs(ms: number): string {
 
 export function BudgetScreen(): JSX.Element {
   const { t } = useLang();
+  const { dataset } = usePlacardData();
   return (
     <section className="screen">
       <h2>{t('budgetTitle')}</h2>
       <p className="muted small">{t('budgetIntro')}</p>
       <p className="small">{t('sweepModes')}</p>
-      <BudgetKpis />
-      <SkippedTable />
-      <BlindSpots />
+      <BudgetKpis budget={dataset.budget} />
+      <SkippedTable budget={dataset.budget} />
+      <BlindSpots blindSpots={dataset.coverageBlindSpots} />
       <p className="small muted">
-        <strong>{t('coverageNote')}:</strong> {BUDGET.coverageNote}
+        <strong>{t('coverageNote')}:</strong> {dataset.budget.coverageNote}
       </p>
     </section>
   );
 }
 
 /** Indicateurs chiffrés du dernier balayage. */
-function BudgetKpis(): JSX.Element {
+function BudgetKpis({ budget }: { budget: ScanBudget }): JSX.Element {
   const { t } = useLang();
-  const b = BUDGET;
+  const b = budget;
   return (
     <div>
       <Kpi label={t('pagesScanned')} value={String(b.pagesScanned)} />
@@ -46,7 +48,7 @@ function BudgetKpis(): JSX.Element {
 }
 
 /** Fichiers non lus — et pourquoi (la couverture déclarée, jamais masquée). */
-function SkippedTable(): JSX.Element {
+function SkippedTable({ budget }: { budget: ScanBudget }): JSX.Element {
   const { t } = useLang();
   return (
     <section>
@@ -60,7 +62,7 @@ function SkippedTable(): JSX.Element {
           </tr>
         </thead>
         <tbody>
-          {BUDGET.skipped.map((s) => (
+          {budget.skipped.map((s) => (
             <tr key={s.kind}>
               <td>{s.kind}</td>
               <td>{s.reason}</td>
@@ -74,13 +76,13 @@ function SkippedTable(): JSX.Element {
 }
 
 /** Angles morts déclarés (§24), jamais ignorés en silence. */
-function BlindSpots(): JSX.Element {
+function BlindSpots({ blindSpots }: { blindSpots: readonly string[] }): JSX.Element {
   const { t } = useLang();
   return (
     <section>
       <h3>{t('blindSpotsTitle')}</h3>
       <ul className="small">
-        {COVERAGE_BLIND_SPOTS.map((s) => (
+        {blindSpots.map((s) => (
           <li key={s}>{s}</li>
         ))}
       </ul>

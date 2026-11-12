@@ -106,6 +106,62 @@ nav.tabs button:hover {
   text-align: center;
 }
 
+/* ---- Indicateur de source : LIVE (vert) / SNAPSHOT (gris) ---- */
+
+.live-status {
+  margin: 0.5rem 0;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--line);
+  border-left-width: 6px;
+  border-radius: 6px;
+  background: var(--panel);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.live-status-live {
+  border-left-color: var(--ok);
+  background: #eef7ee;
+  color: #143d17;
+}
+
+.live-status-snapshot {
+  border-left-color: var(--muted);
+  background: #f1f2f6;
+  color: #33374a;
+}
+
+.live-status-text {
+  font-weight: 700;
+}
+
+.live-status-extra {
+  color: var(--muted);
+}
+
+.live-refresh {
+  margin-left: auto;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.live-refresh:hover:not(:disabled) {
+  background: #e6e8ef;
+}
+
+.live-refresh:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
 /* ---- Langue ---- */
 
 .lang-toggle {
