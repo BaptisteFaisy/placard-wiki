@@ -26,6 +26,37 @@ import type {
   WikiFamily,
 } from '@placard-wiki/domain';
 import type { SpaceSettings } from '@placard-wiki/domain';
+import type { Gite } from '@placard-wiki/domain';
+
+/**
+ * L'état de lecture d'un gîte (§6) pour la dernière passe : lu, non lu,
+ * inaccessible — avec la raison. C'est la mesure HONNÊTE de la couverture :
+ * elle est écrite par le balayage, relue telle quelle, jamais reconstituée.
+ */
+export interface GiteScanRecord {
+  /** Le gîte (§6) : corps de page, commentaires, pièces jointes… */
+  gite: Gite;
+  /** Pages où le gîte a été lu. */
+  pagesRead: number;
+  /** Pages accessibles, mais dont le contenu n'a pas pu être lu. */
+  pagesUnread: number;
+  /** Pages où l'accès a été refusé (droits manquants — jamais « pas de données »). */
+  pagesInaccessible: number;
+  /** Raison de l'échec (vide quand le gîte a été lu partout). */
+  reason: string;
+  /** Horodatage de la passe qui a produit ces compteurs. */
+  passAt: string;
+}
+
+/** Ligne SQL de `gite_scan` (une ligne par gîte). */
+export interface GiteScanRow {
+  gite: string;
+  pages_read: number;
+  pages_unread: number;
+  pages_inaccessible: number;
+  reason: string;
+  pass_at: string;
+}
 
 /** Filtres de lecture des foyers (vue registre, §16 PW-15). */
 export interface ListFoyersQuery {
@@ -118,9 +149,14 @@ export interface BudgetRepo {
   put(budget: ScanBudget): Promise<void>;
 }
 
-/** Une ligne de couverture par gîte (§6) — lus, non lus, et la raison. */
+/**
+ * Une ligne de couverture par gîte (§6) — lus, non lus, et la raison.
+ *
+ * Compteurs d'ÉLÉMENTS (un commentaire lu, une pièce jointe lue) : c'est la
+ * mesure fine, celle du store. La mesure par PAGES vit dans `GiteScanRecord`.
+ */
 export interface GiteCoverageLine {
-  gite: string;
+  gite: Gite;
   scanned: number;
   skipped: number;
   /** Raison du refus (scope manquant, chemin retiré…) si le gîte est illisible. */
@@ -133,6 +169,20 @@ export interface GiteCoverageRepo {
   put(line: GiteCoverageLine, day: string): Promise<void>;
   /** Toutes les lignes d'un jour, triées par gîte. */
   list(day: string): Promise<GiteCoverageLine[]>;
+}
+
+/**
+ * Dépôt `gite_scan` : la couverture RÉELLE, gîte par gîte (§6, §14).
+ *
+ * Compteurs de PAGES (pages lues, pages illisibles, pages refusées) : c'est
+ * la mesure qui permet de calculer le pourcentage de couverture et son
+ * dénominateur. Elle complète `GiteCoverageRepo`, elle ne le remplace pas.
+ */
+export interface GiteScanRepo {
+  /** Enregistre (remplace) l'état d'un gîte pour la passe courante. */
+  put(record: GiteScanRecord): Promise<void>;
+  /** L'état de tous les gîtes connus. */
+  list(): Promise<GiteScanRecord[]>;
 }
 
 /** Dépôt de réglages par espace (PW-24) — non persisté dans SQL (limite honnête). */
@@ -154,7 +204,10 @@ export interface ForgeStore {
   certificates: CertificateRepo;
   cursors: SweepCursorRepo;
   budget: BudgetRepo;
+  /** Mesure fine, par élément, cumulée sur la journée (§6). */
   giteCoverage: GiteCoverageRepo;
+  /** Mesure par page de la dernière passe (§6, §14) — base du pourcentage. */
+  giteScans: GiteScanRepo;
   settings: SettingsRepo;
   /**
    * Écrit un foyer complet : ligne `finding` + lignes `location`. Calcule aussi

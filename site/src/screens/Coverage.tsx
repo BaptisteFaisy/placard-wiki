@@ -4,13 +4,57 @@
 // `CoverageReport` du domaine ; l'écran n'ajoute que la présentation bilingue.
 
 import { NO_DATA_VS_NO_RIGHT } from '../data/coverage.js';
-import type { CoverageReport } from '@placard-wiki/domain';
+import type { CoverageReportAffichee, GiteCoverageState } from '../data/coverage.js';
 import { useLang } from '../i18n.js';
 import { usePlacardData } from '../data/placard-data.js';
 import { formatDate, GiteLabel } from '../ui.js';
 
-/** Table de couverture par gîte : balayé / non lu / raison. */
-function PerGiteTable({ coverage }: { coverage: CoverageReport }): JSX.Element {
+/** L'état d'un gîte, en clair, dans la langue courante. */
+function StateLabel({ state }: { state: GiteCoverageState }): JSX.Element {
+  const { t } = useLang();
+  const key = state === 'read' ? 'stateRead'
+    : state === 'unread' ? 'stateUnread'
+      : state === 'inaccessible' ? 'stateInaccessible'
+        : 'stateNotAttempted';
+  return <span className={`gite-state gite-${state}`}>{t(key)}</span>;
+}
+
+/** La couverture réelle, en grand : un pourcentage, jamais un 0 % muet. */
+function CoverageBig({ coverage }: { coverage: CoverageReportAffichee }): JSX.Element {
+  const { t } = useLang();
+  if (coverage.coveragePercent === null) {
+    return (
+      <p className="coverage-big coverage-indeterminate">
+        <strong>{t('covIndeterminate')}</strong>
+      </p>
+    );
+  }
+  return (
+    <p className="coverage-big">
+      <strong className="coverage-percent">{coverage.coveragePercent.toLocaleString(undefined, { maximumFractionDigits: 1 })} %</strong>
+      <span className="coverage-sub">
+        {' '}{coverage.gitesCovered}/{coverage.gitesTotal} {t('covHidingPlacesCovered')}
+        {coverage.pagesRead !== undefined ? <> · {coverage.pagesRead} {t('covPagesReadLabel')}</> : null}
+        {coverage.pagesTargeted !== undefined ? <> · {coverage.pagesTargeted} {t('covPagesTargetedLabel')}</> : null}
+      </span>
+    </p>
+  );
+}
+
+/** La méthode : le chiffre sans sa méthode ne vaut rien. */
+function MethodBlock({ coverage }: { coverage: CoverageReportAffichee }): JSX.Element {
+  const { t } = useLang();
+  if (coverage.method === '') return <></>;
+  return (
+    <section aria-label={t('covMethodLabel')} className="coverage-method">
+      <h3>{t('covMethodLabel')}</h3>
+      <p className="method-text">{coverage.method}</p>
+    </section>
+  );
+}
+
+/** Table de couverture par gîte : lu / non lu / inaccessible / raison. */
+function PerGiteTable({ coverage }: { coverage: CoverageReportAffichee }): JSX.Element {
   const { t } = useLang();
   return (
     <table className="registry">
@@ -20,6 +64,7 @@ function PerGiteTable({ coverage }: { coverage: CoverageReport }): JSX.Element {
           <th scope="col">{t('covGite')}</th>
           <th scope="col">{t('covScannedCol')}</th>
           <th scope="col">{t('covSkippedCol')}</th>
+          <th scope="col">{t('covInaccessibleCol')}</th>
           <th scope="col">{t('covReasonCol')}</th>
         </tr>
       </thead>
@@ -29,9 +74,13 @@ function PerGiteTable({ coverage }: { coverage: CoverageReport }): JSX.Element {
             <td>
               <GiteLabel gite={entry.gite} />
             </td>
-            <td>{entry.scanned}</td>
-            <td>{entry.skipped > 0 ? <strong>{entry.skipped}</strong> : entry.skipped}</td>
-            <td className="small">{entry.reason ?? '—'}</td>
+            <td>{entry.pagesRead}</td>
+            <td>{entry.pagesUnread > 0 ? <strong>{entry.pagesUnread}</strong> : entry.pagesUnread}</td>
+            <td>{entry.pagesInaccessible > 0 ? <strong>{entry.pagesInaccessible}</strong> : entry.pagesInaccessible}</td>
+            <td className="small">
+              <StateLabel state={entry.state} />
+              {entry.reason !== undefined ? <span className="gite-reason"> — {entry.reason}</span> : null}
+            </td>
           </tr>
         ))}
       </tbody>
@@ -82,6 +131,9 @@ export function CoverageScreen({ onGotoBudget }: { onGotoBudget: () => void }): 
     <section className="screen">
       <h2>{t('covTitle')}</h2>
       <p className="small muted">{t('covIntro')}</p>
+      <h3>{t('covCoverageTitle')}</h3>
+      <CoverageBig coverage={coverage} />
+      <MethodBlock coverage={coverage} />
       <p className="muted">
         {t('covLastPass')} : {coverage.lastPassAt ? formatDate(coverage.lastPassAt, lang) : '—'}
       </p>

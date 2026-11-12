@@ -170,4 +170,27 @@ describe('parseLivePayload — validation minimale de forme', () => {
     expect(payload.registry).toHaveLength(1);
     expect(payload.registry[0]?.foyerId).toBe('F-1');
   });
+
+  it('un flux sans couverture par gîte rend une couverture indéterminée, jamais 0 %', () => {
+    const payload = parseLivePayload(VALID_PAYLOAD) as LivePayload;
+    expect(payload.coverage.coveragePercent).toBeNull();
+    expect(payload.coverage.coveragePercent).not.toBe(0);
+  });
+
+  it('un flux qui porte le pourcentage et la méthode les conserve', () => {
+    const coverage = {
+      perGite: [{ gite: 'corps-de-page', scanned: 264, skipped: 0, pagesRead: 264, pagesUnread: 0, pagesInaccessible: 0, state: 'read' }],
+      blindSpots: [],
+      missingRights: [],
+      coveragePercent: 14.3,
+      gitesCovered: 1,
+      gitesTotal: 7,
+      method: 'Couverture = 264 ÷ (7 × 264) = 14.3 %.',
+    };
+    const payload = parseLivePayload({ ...VALID_PAYLOAD, coverage }) as LivePayload;
+    expect(payload.coverage.coveragePercent).toBe(14.3);
+    expect(payload.coverage.gitesCovered).toBe(1);
+    expect(payload.coverage.method).toContain('14.3');
+    expect(payload.coverage.perGite[0]?.state).toBe('read');
+  });
 });

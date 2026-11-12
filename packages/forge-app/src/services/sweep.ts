@@ -22,14 +22,17 @@ import {
 import type { PageCursor } from '@placard-wiki/wiki-source';
 import { groupIntoFoyers } from '@placard-wiki/propagation';
 import { FAMILY_LABELS } from '@placard-wiki/domain';
-import type { Foyer, PageExposure, ScanBudget, WikiFamily } from '@placard-wiki/domain';
+import type { Foyer, Gite, PageExposure, ScanBudget, WikiFamily } from '@placard-wiki/domain';
 
 import type { ServiceContext, SweepResult } from './ports';
 import { computePageExposure } from './exposure';
 import { scoreFoyer } from './scoring';
-import { emptyAccumulator, noteGite, scanOneItem, scanPageInto } from './scan-page';
+import {
+  accumulateGiteOutcome, emptyAccumulator, noteGite, scanOneItem, scanPageInto,
+} from './scan-page';
 import type { ScanAccumulator } from './scan-page';
-import type { GiteCoverageLine } from '../store/ports';
+import { GITE_ORDER, NOT_ATTEMPTED_GITES, NOT_ATTEMPTED_REASON } from './coverage';
+import type { GiteCoverageLine, GiteScanRecord } from '../store/ports';
 
 /** Paramètres d'un balayage borné. */
 export interface SweepParams {
@@ -181,7 +184,7 @@ async function persistScans(ctx: ServiceContext, acc: ScanAccumulator): Promise<
  */
 async function persistGiteCoverage(ctx: ServiceContext, acc: ScanAccumulator): Promise<void> {
   const day = ctx.clock.now().slice(0, 10);
-  const MERGED: readonly string[] = ['modeles-de-page'];
+  const MERGED: readonly Gite[] = ['modeles-de-page'];
   const lines: GiteCoverageLine[] = [...acc.gites.values()];
   for (const gite of MERGED) {
     if (!lines.some((l) => l.gite === gite)) {
@@ -204,6 +207,35 @@ async function persistGiteCoverage(ctx: ServiceContext, acc: ScanAccumulator): P
       skipped: (previous?.skipped ?? 0) + line.skipped,
       ...(reason !== undefined ? { reason } : {}),
     }, day);
+  }
+}
+
+/**
+ * Persiste la mesure PAR PAGE de chaque gîte (§6, §14) : c'est elle qui
+ * donne le pourcentage de couverture et son dénominateur.
+ *
+ * Elle complète la mesure par élément (`gite_coverage`, ci-dessus) : les deux
+ * sont écrites, aucune n'écrase l'autre. Les gîtes que la passe ne tente
+ * jamais (modèles — §6) sont écrits avec `pagesRead = 0` et la raison
+ * « angle mort déclaré » : ils ne sont ni lus ni refusés, ils sont **hors de
+ * portée**, et c'est dit.
+ */
+async function persistGiteScans(ctx: ServiceContext, acc: ScanAccumulator, passAt: string): Promise<void> {
+  for (const gite of GITE_ORDER) {
+    const outcome = acc.giteOutcomes.get(gite);
+    const notAttempted = NOT_ATTEMPTED_GITES.includes(gite);
+    const reason = outcome === undefined
+      ? (notAttempted ? NOT_ATTEMPTED_REASON : '')
+      : outcome.reasons.join(' · ');
+    const record: GiteScanRecord = {
+      gite,
+      pagesRead: outcome?.pagesRead ?? 0,
+      pagesUnread: outcome?.pagesUnread ?? 0,
+      pagesInaccessible: outcome?.pagesInaccessible ?? 0,
+      reason,
+      passAt,
+    };
+    await ctx.store.giteScans.put(record);
   }
 }
 
@@ -245,10 +277,25 @@ async function scanSpaceDescription(
   try {
     const items = await readSpaceDescription(ctx.confluence, spaceKey);
     noteGite(acc, 'description-espace', items.length);
+    // La mesure par page : une description d'espace lue = une page lue.
+    accumulateGiteOutcome(acc, {
+      gite: 'description-espace',
+      pagesRead: 1,
+      pagesUnread: 0,
+      pagesInaccessible: 0,
+      reasons: [],
+    });
     for (const item of items) await scanOneItem(ctx, item, acc, ctx.clock.now(), disabled);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     noteGite(acc, 'description-espace', 0, reason);
+    accumulateGiteOutcome(acc, {
+      gite: 'description-espace',
+      pagesRead: 0,
+      pagesUnread: 0,
+      pagesInaccessible: 1,
+      reasons: [reason],
+    });
     acc.blindSpots.push(`Gîte « description-espace » illisible : ${reason}.`);
   }
 }
@@ -270,6 +317,7 @@ export async function runSweep(ctx: ServiceContext, params: SweepParams): Promis
   const durationMs = Date.now() - t0;
   await updateBudget(ctx, acc, pageIds.length, durationMs);
   const runAt = ctx.clock.now();
+  await persistGiteScans(ctx, acc, runAt);
   const sweepCursor = toSweepCursor(params.scope, params.mode, cursor, runAt);
   await ctx.store.cursors.put(sweepCursor);
   const blindSpots = [...new Set(acc.blindSpots)];
