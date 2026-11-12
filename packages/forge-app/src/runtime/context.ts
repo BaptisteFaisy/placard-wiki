@@ -11,8 +11,6 @@
  */
 
 import { asApp, asUser, assumeTrustedRoute, __getRuntime } from '@forge/api';
-import type { ResponseLike } from '@placard-wiki/wiki-source';
-import { createConfluenceClient } from '@placard-wiki/wiki-source';
 import type { ConfluenceClient } from '@placard-wiki/wiki-source';
 import { createCachedOracle, ORACLE_SYSTEM_PROMPT_FR } from '@placard-wiki/detectors';
 import type { CachedOracle, LlmOracle, LlmOracleQuestion, LlmOracleVerdict } from '@placard-wiki/detectors';
@@ -20,6 +18,7 @@ import { chat } from '@forge/llm';
 import { appEvents } from '@forge/events';
 import type { ClockPort, IdPort, StoragePort } from '@placard-wiki/ritual';
 
+import { createForgeConfluence } from './confluence';
 import { createForgeStore, readOrCreateAppSecret } from '../store/forge-store';
 import type { ForgeStore } from '../store/ports';
 import {
@@ -70,22 +69,13 @@ async function resolveHmacKey(): Promise<{ key: string; source: HmacSource }> {
   return { key: installationKey(), source: 'repli-installation' };
 }
 
-/** Adaptateur `fetch` pour le client Confluence (via `asApp().requestConfluence`). */
-function confluenceFetch(): (url: string, init?: { method?: string }) => Promise<ResponseLike> {
-  return async (url, init) => {
-    const response = await asApp().requestConfluence(assumeTrustedRoute(url), { method: init?.method ?? 'GET' });
-    return {
-      status: response.status,
-      ok: response.ok,
-      json: () => response.json(),
-      text: () => response.text(),
-    };
-  };
-}
-
-/** Client Confluence de production (chemins v1/v2 à valider, §22). */
+/**
+ * Client Confluence de production. Les chemins qui répondent 200 pour
+ * l'identité de l'app sont choisis dans `runtime/confluence.ts` (mesuré le
+ * 12 novembre 2026) ; le reste du paquet `wiki-source` reste inchangé.
+ */
 function createConfluence(): ConfluenceClient {
-  return createConfluenceClient(confluenceFetch() as never, '', '');
+  return createForgeConfluence();
 }
 
 /**
@@ -262,6 +252,27 @@ function createAccess(client: ConfluenceClient, actor: () => ActorContext): Acce
       return me !== undefined && restrictions.read.includes(me);
     },
   };
+}
+
+/**
+ * Sonde les points d'accès Confluence depuis l'identité de l'app et renvoie
+ * le statut HTTP de chacun. Diagnostic mesuré (12 novembre 2026) : la
+ * recherche CQL répond 200 alors que la lecture d'une page répond 401 — il
+ * faut donc savoir quel chemin fonctionne avant de balayer.
+ */
+export async function probeConfluence(
+  paths: readonly string[],
+): Promise<Array<{ path: string; status: number; error?: string }>> {
+  const out: Array<{ path: string; status: number; error?: string }> = [];
+  for (const path of paths) {
+    try {
+      const response = await asApp().requestConfluence(assumeTrustedRoute(path));
+      out.push({ path, status: response.status });
+    } catch (error) {
+      out.push({ path, status: -1, error: String(error) });
+    }
+  }
+  return out;
 }
 
 let cachedContext: ServiceContext | null = null;

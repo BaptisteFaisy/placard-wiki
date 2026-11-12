@@ -21,8 +21,8 @@
 
 import { Queue } from '@forge/events';
 
-import { getServiceContext } from './runtime/context';
-import { buildingModel, coverageReport, generateCertificate, registryRows, runSweep } from './services/index';
+import { getServiceContext, probeConfluence } from './runtime/context';
+import { buildingModel, coverageReport, generateCertificate, maskText, registryRows, runSweep } from './services/index';
 import type { ServiceContext } from './services/ports';
 import type {
   BuildingModel, Certificate, CoverageReport, Foyer, RegistryRow, ScanBudget,
@@ -31,24 +31,31 @@ import type {
 interface WebtriggerRequest {
   method: string;
   path: string;
-  queryParameters?: Record<string, string | string[]>;
+  /** Mesuré : les paramètres sont des **tableaux** de valeurs (`@forge/api`). */
+  queryParameters?: Record<string, string[]>;
   body?: string;
 }
 
 interface WebtriggerResponse {
   statusCode: number;
-  headers: Record<string, string>;
+  headers: Record<string, string[]>;
   body: string;
 }
 
-const JSON_HEADERS = { 'Content-Type': 'application/json' };
+/**
+ * Les en-têtes d'une réponse dynamique sont des **tableaux de valeurs**
+ * (`@forge/api` : `headers?: { [key: string]: string[] }`). Une chaîne seule
+ * fait échouer la sérialisation : la plateforme répond 424 « Failed
+ * Dependency » sans journal d'erreur — mesuré le 12 novembre 2026.
+ */
+const JSON_HEADERS: Record<string, string[]> = { 'Content-Type': ['application/json'] };
 
 /** CORS du webtrigger public : le site public appelle l'app depuis un autre domaine. */
-const CORS_HEADERS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Max-Age': '600',
+const CORS_HEADERS: Record<string, string[]> = {
+  'Access-Control-Allow-Origin': ['*'],
+  'Access-Control-Allow-Methods': ['GET, OPTIONS'],
+  'Access-Control-Allow-Headers': ['Content-Type'],
+  'Access-Control-Max-Age': ['600'],
 };
 
 /** File de balayage long (§19 : module `consumer`, queue `pw-sweep-queue`). */
@@ -138,6 +145,9 @@ const DEMO_SPACE = 'PLACARDDEMO';
 /** Borne de la passe en ligne du webtrigger (le webtrigger tient en 55 s). */
 const INLINE_SWEEP_PAGES = 25;
 
+/** Une page de l'espace de démonstration, pour la sonde des points d'accès. */
+const PROBE_PAGE_ID = '3932169';
+
 /** Ce que la passe demandée a donné — déclaré, jamais inventé. */
 interface RefreshReport {
   scope: string;
@@ -192,13 +202,19 @@ function emptyBudget(day: string): ScanBudget {
   };
 }
 
-/** Titres réels des pages porteuses de foyers (le registre les affiche). */
+/**
+ * Titres réels des pages porteuses de foyers (le registre les affiche).
+ *
+ * ⚠ Le titre est **masqué** avant publication : l'espace de démonstration
+ * place des faux secrets dans les titres de page (§23 — aucune valeur brute,
+ * même fausse, dans la charge utile publique).
+ */
 async function liveTitles(ctx: ServiceContext, foyers: readonly Foyer[]): Promise<Record<string, string>> {
   const pageIds = [...new Set(foyers.flatMap((f) => f.locations.map((l) => l.pageId)))].slice(0, 40);
   const titles: Record<string, string> = {};
   await Promise.all(pageIds.map(async (pageId) => {
     const page = await ctx.confluence.getPage(pageId).catch(() => null);
-    if (page !== null) titles[pageId] = page.title;
+    if (page !== null) titles[pageId] = maskText(page.title, ctx.hmacKey);
   }));
   return titles;
 }
@@ -235,17 +251,23 @@ function liveCoverage(base: CoverageReport, budget: ScanBudget, lastPassAt?: str
 
 /** Assemble la charge utile live à partir du store (aucune valeur brute : §23). */
 async function buildPublicDemo(ctx: ServiceContext): Promise<PublicDemoPayload> {
+  console.info('[placard] public-demo : lecture du store…');
   const foyers = await ctx.store.listFoyers({ limit: 200 });
+  console.info(`[placard] public-demo : foyers en base = ${String(foyers.length)}`);
   const { rows } = await registryRows(ctx, { limit: 200, sort: 'score' });
   const building = await buildingModel(ctx);
   const day = ctx.clock.now().slice(0, 10);
   const budget = (await ctx.store.budget.get(day)) ?? emptyBudget(day);
   const cursor = await ctx.store.cursors.get('site', 'incremental');
   const coverage = liveCoverage(await coverageReport(ctx), budget, cursor?.runAt);
-  const certificate = (await ctx.store.certificates.latest('site')) ?? (await generateCertificate(ctx, 'site'));
+  // Le certificat est **regénéré** à chaque appel : un certificat périmé
+  // compterait des foyers qui n'existent plus (§9 — le certificat.date).
+  const certificate = await generateCertificate(ctx, 'site');
+  console.info('[placard] public-demo : titres et espaces réels…');
   const titles = await liveTitles(ctx, foyers);
   const spaceKeys = [...new Set(foyers.map((f) => f.spaceKey ?? '').filter((k) => k !== ''))];
   const registry = rows.map((row) => ({ ...row, pageTitle: titles[row.pageId] ?? row.pageTitle }));
+  console.info(`[placard] public-demo : charge utile prête (${String(registry.length)} lignes).`);
   return {
     generatedAt: ctx.clock.now(),
     mode: 'live',
@@ -291,8 +313,13 @@ async function inlineSweep(ctx: ServiceContext, asked: string | string[] | undef
   const value = Array.isArray(asked) ? asked[0] : asked;
   if (value === undefined || value === '' || value === '0') return null;
   const scope = DEMO_SPACE;
+  const started = Date.now();
+  console.info(`[placard] public-demo : passe en ligne sur « ${scope} »…`);
   const result = await runSweep(ctx, { mode: 'full', scope, maxPages: INLINE_SWEEP_PAGES })
-    .catch(() => null);
+    .catch((error: unknown) => {
+      console.info(`[placard] public-demo : passe en ligne échouée — ${String(error)}`);
+      return null;
+    });
   if (result === null) {
     return {
       scope,
@@ -302,9 +329,13 @@ async function inlineSweep(ctx: ServiceContext, asked: string | string[] | undef
       honesty: 'Passe en ligne impossible — le curseur de la passe planifiée reste la source de vérité.',
     };
   }
+  console.info(
+    `[placard] public-demo : passe en ligne pages=${String(result.pagesScanned)} foyers=${String(result.foyersTouched)} angles morts=${String(result.blindSpots.length)} en ${String(Date.now() - started)} ms`,
+  );
+  for (const spot of result.blindSpots.slice(0, 3)) console.info(`[placard] angle mort : ${spot}`);
   return {
     scope,
-    status: result.done ? 'terminée' : 'tranche bornée (passe à reprends)',
+    status: result.done ? 'terminée' : 'tranche bornée (passe à reprendre)',
     pagesScanned: result.pagesScanned,
     foyersTouched: result.foyersTouched,
     blindSpots: result.blindSpots.slice(0, 5),
@@ -313,10 +344,38 @@ async function inlineSweep(ctx: ServiceContext, asked: string | string[] | undef
 }
 
 /**
+ * Sonde les points d'accès Confluence depuis l'identité de l'app : c'est le
+ * diagnostic qui a permis de voir que la recherche CQL répond 200 alors que
+ * la lecture d'une page répond 401. Le chemin qui répond 200 est celui que le
+ * client Confluence doit employer.
+ */
+async function runProbe(): Promise<unknown> {
+  const pageId = PROBE_PAGE_ID;
+  const paths = [
+    `/wiki/rest/api/content/search?cql=id%3D${pageId}&limit=1`,
+    `/wiki/rest/api/content/search?cql=id%3D${pageId}&limit=1&expand=body.storage,version`,
+    `/wiki/rest/api/content/${pageId}`,
+    `/wiki/rest/api/content/${pageId}?expand=body.storage`,
+    `/wiki/rest/api/content/${pageId}?expand=body.storage,version,metadata.labels`,
+    `/wiki/rest/api/content/${pageId}?expand=body.storage%2Cversion%2Cmetadata.labels`,
+    `/wiki/rest/api/content/${pageId}/child/comment?expand=body.storage,version`,
+    `/wiki/rest/api/content/${pageId}/child/attachment`,
+    `/wiki/rest/api/content/${pageId}/version`,
+    `/wiki/rest/api/content/${pageId}/restriction`,
+    `/wiki/api/v2/pages/${pageId}?body-format=storage`,
+    `/wiki/api/v2/pages/${pageId}/versions`,
+  ];
+  const results = await probeConfluence(paths);
+  console.info(`[placard] sonde Confluence : ${JSON.stringify(results)}`);
+  return results;
+}
+
+/**
  * Webtrigger public : la chaîne live. `GET` renvoie le JSON public, `OPTIONS`
  * le préflight CORS. Le paramètre `?sweep=1` demande une passe bornée en ligne
  * sur l'espace de démonstration (les données renvoyées sont alors fresh) ;
- * `?sweep=<ESPACE>` met une passe en file pour le consumer.
+ * `?queue=<ESPACE>` met une passe en file pour le consumer ; `?probe=1` sonde
+ * les points d'accès Confluence (diagnostic).
  */
 export async function publicDemoHook(request: WebtriggerRequest): Promise<WebtriggerResponse> {
   if (request.method === 'OPTIONS') {
@@ -324,15 +383,30 @@ export async function publicDemoHook(request: WebtriggerRequest): Promise<Webtri
   }
   const ctx = await getServiceContext();
   console.info(`[placard] public-demo-hook ${request.method} ${request.path}`);
-  const refresh = await inlineSweep(ctx, request.queryParameters?.['sweep']);
-  const payload = await buildPublicDemo(ctx);
-  const queued = await queueSweep(request.queryParameters?.['queue']);
-  const body: PublicDemoPayload & { refresh?: RefreshReport; queued?: string } = payload;
-  if (refresh !== null) body.refresh = refresh;
-  if (queued !== null) body.queued = queued;
-  return {
-    statusCode: 200,
-    headers: { ...JSON_HEADERS, ...CORS_HEADERS },
-    body: JSON.stringify(body),
-  };
+  try {
+    const refresh = await inlineSweep(ctx, request.queryParameters?.['sweep']);
+    const payload = await buildPublicDemo(ctx);
+    const queued = await queueSweep(request.queryParameters?.['queue']);
+    const body: PublicDemoPayload & { refresh?: RefreshReport; queued?: string; probe?: unknown } = payload;
+    if (refresh !== null) body.refresh = refresh;
+    if (queued !== null) body.queued = queued;
+    const probe = request.queryParameters?.['probe'];
+    if (probe !== undefined && probe[0] !== '0') body.probe = await runProbe();
+    return {
+      statusCode: 200,
+      headers: { ...JSON_HEADERS, ...CORS_HEADERS },
+      body: JSON.stringify(body),
+    };
+  } catch (error) {
+    // Le journal porte le symptôme : l'appel public rend un 500 honestement.
+    console.info(`[placard] public-demo : échec — ${String(error)}`);
+    return {
+      statusCode: 500,
+      headers: { ...JSON_HEADERS, ...CORS_HEADERS },
+      body: JSON.stringify({
+        error: 'charge-utilisable-indisponible',
+        honesty: 'La chaîne live n’a pas pu être produite. Rien n’est inventé à la place.',
+      }),
+    };
+  }
 }

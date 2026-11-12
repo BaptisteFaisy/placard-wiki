@@ -11,7 +11,9 @@
 import { createHash } from 'node:crypto';
 import { buildQuestion, maskSpans, scanItem } from '@placard-wiki/detectors';
 import type { DetectionCandidate, ScanItem } from '@placard-wiki/detectors';
-import { readAllPageGites } from '@placard-wiki/wiki-source';
+import {
+  readAttachments, readComments, readPageBody, readTitlesAndLabels, readVersions,
+} from '@placard-wiki/wiki-source';
 import type { ConfluenceClient, ScannedItem } from '@placard-wiki/wiki-source';
 import type {
   AttachmentScanRecord,
@@ -148,6 +150,44 @@ function pageMetaOf(pageId: string, title: string, createdAt: string): WikiPageM
   return { pageId, title, createdAt };
 }
 
+/** Un gîte de la page et son lecteur (§6) — lu un par un, jamais tout ou rien. */
+interface GiteReader {
+  gite: string;
+  read: (client: ConfluenceClient, pageId: string) => Promise<ScannedItem[]>;
+}
+
+/** Les cinq gîtes d'une page : corps, titres, commentaires, pièces, versions. */
+const PAGE_GITES: readonly GiteReader[] = [
+  { gite: 'corps-de-page', read: (client, pageId) => readPageBody(client, pageId) },
+  { gite: 'titres-et-etiquettes', read: (client, pageId) => readTitlesAndLabels(client, pageId) },
+  { gite: 'commentaires', read: (client, pageId) => readComments(client, pageId) },
+  { gite: 'pieces-jointes', read: (client, pageId) => readAttachments(client, pageId) },
+  { gite: 'historique-de-versions', read: (client, pageId) => readVersions(client, pageId) },
+];
+
+/**
+ * Lit les gîtes d'une page **un par un**. Un gîte hors de portée (droits
+ * manquants, 401) est déclaré en angle mort ; il ne fait pas perdre la page
+ * entière — mesuré le 12 novembre 2026 : l'identité de l'app n'a accès qu'à
+ * la recherche, pas aux points d'accès directs de contenu.
+ */
+async function readPageGites(
+  ctx: ServiceContext,
+  pageId: string,
+  acc: ScanAccumulator,
+): Promise<ScannedItem[]> {
+  const items: ScannedItem[] = [];
+  for (const gite of PAGE_GITES) {
+    try {
+      items.push(...await gite.read(ctx.confluence, pageId));
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      acc.blindSpots.push(`Gîte « ${gite.gite} » de la page ${pageId} illisible : ${reason}.`);
+    }
+  }
+  return items;
+}
+
 /**
  * Scanne une page : tous ses gîtes (corps, titre, étiquettes, commentaires,
  * pièces jointes, historique de versions). Les modèles et la description
@@ -160,16 +200,14 @@ export async function scanPageInto(
   disabled: readonly WikiFamily[],
 ): Promise<void> {
   const detectedAt = ctx.clock.now();
-  let items: ScannedItem[];
-  try {
-    items = await readAllPageGites(ctx.confluence, pageId);
-  } catch {
+  const items = await readPageGites(ctx, pageId, acc);
+  if (items.length === 0) {
     acc.pageScans.push({
       pageId, contentHash: '', versionScanned: 0, scannedAt: detectedAt,
       detectorsVersion: DETECTORS_VERSION, llmCalls: 0, tokens: 0,
-      skippedReason: 'page illisible (droits manquants ou supprimée) : déclaré, pas masqué',
+      skippedReason: 'page illisible (aucun gîte lu) : déclaré, pas masqué',
     });
-    acc.blindSpots.push(`Page ${pageId} illisible : droits manquants ou contenu supprimé.`);
+    acc.blindSpots.push(`Page ${pageId} : aucun gîte lisible.`);
     return;
   }
   const page = await ctx.confluence.getPage(pageId).catch(() => null);
@@ -192,3 +230,24 @@ export async function scanPageInto(
 
 /** Fabrique un client Confluence borné (ré-export pour lisibilité). */
 export type { ConfluenceClient };
+
+/**
+ * Masque un texte libre (titre de page) : chaque valeur détectée est
+ * remplacée par son **aperçu masqué**. Mesuré le 12 novembre 2026 : un titre
+ * peut contenir un secret (l'espace de démonstration en contient) — le
+ * publier en clair serait une fuite, même sur un faux secret (§23).
+ */
+export function maskText(text: string, hmacKey: string): string {
+  const candidates = scanItem({ containerType: 'page', field: 'title', text }, { hmacKey });
+  const spans = [...candidates].sort((a, b) => a.charStart - b.charStart);
+  let out = '';
+  let cursor = 0;
+  for (const candidate of spans) {
+    if (candidate.charEnd <= candidate.charStart) continue;
+    if (candidate.charStart < cursor) continue; // intervalles chevauchants : le premier gagne
+    out += text.slice(cursor, candidate.charStart);
+    out += candidate.maskedPreview;
+    cursor = candidate.charEnd;
+  }
+  return out + text.slice(cursor);
+}

@@ -22,8 +22,9 @@ export async function incrementalSweep(): Promise<void> {
   const ctx = await getServiceContext();
   const result = await runSweep(ctx, { mode: 'incremental', scope: 'site', maxPages: INCREMENTAL_SLICE });
   console.info(
-    `[placard] incrémental pages=${String(result.pagesScanned)} done=${String(result.done)}`,
+    `[placard] incrémental pages=${String(result.pagesScanned)} foyers=${String(result.foyersTouched)} done=${String(result.done)} angles morts=${String(result.blindSpots.length)}`,
   );
+  for (const spot of result.blindSpots.slice(0, 3)) console.info(`[placard] angle mort : ${spot}`);
   if (result.nextCursor !== null) {
     // La passe n'est pas terminée : la suite part sur la file du consumer (§14).
     try {
