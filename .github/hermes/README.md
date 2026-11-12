@@ -23,9 +23,9 @@ Sans aucune des deux jambes : rien n'est poussé, la PR est commentée et
 | `texte.py` | découpe en hunks, recopie du fichier intact, marques de conflit restantes |
 | `union_journal.py` | union déterministe des journaux en ajout pur (aucune saisine de modèle) |
 | `quota.py` | empreintes, cooldown, plafonds de saisine |
-| `compilation_gate.py` | porte de compilation : une résolution qui ne compile pas n'est jamais poussée |
+| `compilation_gate.py` | porte de validation : la toolchain du dépôt avant tout push (py_compile, docs UTF-8, YAML, `pnpm verify`, Gradle) ; un contrôle impossible est sauté **et dit** |
 | `sonde.py` | sonde vivante de la jambe modèle (`hermes-probe.yml`), aucun secret imprimé |
-| `test_*.py` | selftests stdlib, aucun réseau, aucune clé |
+| `test_*.py` | selftests stdlib, aucun réseau, aucune clé (dont `test_compilation_gate.py`) |
 
 Vue longue (architecture, décisions, exercice de conflit) : [`docs/HERMES.md`](../../docs/HERMES.md).
 
