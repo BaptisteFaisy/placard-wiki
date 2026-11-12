@@ -19,16 +19,22 @@ const REASON_KEYS: Record<LiveReason, DictKey> = {
   'invalid-shape': 'liveReasonInvalidShape',
 };
 
-/** Minutes écoulées depuis l'horodatage du balayage (null si illisible). */
-function minutesSince(iso: string | undefined): number | null {
+/** Secondes écoulées depuis l'horodatage du balayage (null si illisible). */
+function secondsSince(iso: string | undefined): number | null {
   if (!iso) return null;
   const at = Date.parse(iso);
   if (Number.isNaN(at)) return null;
-  return Math.max(0, Math.floor((Date.now() - at) / 60000));
+  return Math.max(0, Math.floor((Date.now() - at) / 1000));
 }
 
-/** Période de rechargement de l'indicateur (l'âge affiché doit vieillir). */
-const TICK_MS = 30000;
+/** Minutes écoulées depuis l'horodatage du balayage (null si illisible). */
+function minutesSince(iso: string | undefined): number | null {
+  const secs = secondsSince(iso);
+  return secs === null ? null : Math.floor(secs / 60);
+}
+
+/** Période de rechargement de l'horloge (« il y a N s » doit bouger). */
+const TICK_MS = 10_000;
 
 /**
  * Bandeau d'état de la source : vert en live, gris en snapshot, avec le
@@ -47,13 +53,17 @@ export function LiveStatusBanner(): JSX.Element {
   }, []);
 
   const live = status === 'live';
-  const age = minutesSince(generatedAt);
   const reasonKey = reason !== undefined ? REASON_KEYS[reason] : undefined;
 
   let text: string;
   if (live) {
     const site = t('liveSiteLabel');
-    const when = age === null ? t('liveScannedUnknown') : age <= 0 ? t('liveScannedNow') : t('liveScannedAgo').replace('{n}', String(age));
+    const secs = secondsSince(generatedAt);
+    const when = secs === null
+      ? t('liveScannedUnknown')
+      : secs < 60
+        ? (secs <= 5 ? t('liveScannedNow') : t('liveScannedSecsAgo').replace('{n}', String(secs)))
+        : t('liveScannedAgo').replace('{n}', String(minutesSince(generatedAt)));
     text = `${t('liveBadge')} — ${site} ${dataset.siteName}, ${when}`;
   } else if (status === 'loading') {
     text = `${t('liveBadgeLoading')} — ${t('liveSnapshotNote')}`;
