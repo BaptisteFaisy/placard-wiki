@@ -15,6 +15,7 @@ import { useSpaceKey } from './context';
 import { useI18n } from './i18n';
 import { EmptyNotice, Loading } from './widgets';
 import { useCallback, useEffect, useState } from 'react';
+import { mountScreen } from './mount';
 
 /** Un chiffre du certificat, encadré (lisibilité, contraste AA). */
 function Figure({ label, value }: { label: string; value: string | number }): JSX.Element {
@@ -108,3 +109,7 @@ export default function CertificateMacro(): JSX.Element {
     </Stack>
   );
 }
+
+// Point d'entrée de la ressource `placard-certificate` (forme UI Kit
+// actuelle) : Forge importe ce module et attend qu'il demande son rendu.
+mountScreen(<CertificateMacro />);

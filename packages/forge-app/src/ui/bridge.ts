@@ -13,7 +13,6 @@
  * masqués.
  */
 
-import { invoke } from '@forge/bridge';
 import type { BridgeMethod, BridgeRequests, BridgeResults } from '@placard-wiki/domain';
 
 /** Le résultat d'un appel : données, attente honnête, ou erreur. */
@@ -50,6 +49,20 @@ function isNotImplemented<T>(value: unknown): value is { notImplemented: BridgeM
 }
 
 /**
+ * Appelle une méthode du résolveur par le pont Forge.
+ *
+ * Le pont est chargé à l'appel, jamais à l'importation : `@forge/bridge` lève
+ * hors d'un produit Atlassian (« unable to establish a connection »), et la
+ * ressource d'écran est un module importé par Forge. Le charger à l'appel
+ * garde l'écran testable hors produit. Même convention que l'app sœur
+ * `tickets-pieges` (même atelier, déployée).
+ */
+async function bridgeInvoke(method: string, payload: InvokePayload): Promise<unknown> {
+  const bridge = await import('@forge/bridge');
+  return bridge.invoke(method, payload) as Promise<unknown>;
+}
+
+/**
  * Appelle une méthode du bridge, typée à la fois en entrée et en sortie.
  * Ne lève jamais : tout échec devient un `BridgeOutcome` affichable.
  */
@@ -58,7 +71,7 @@ export async function callBridge<M extends BridgeMethod>(
   payload: BridgeRequests[M],
 ): Promise<BridgeOutcome<BridgeResults[M]>> {
   try {
-    const raw = (await invoke(method, payload as unknown as InvokePayload)) as
+    const raw = (await bridgeInvoke(method, payload as unknown as InvokePayload)) as
       | RawBridgeResponse<BridgeResults[M]>
       | undefined;
     if (isNotImplemented<BridgeResults[M]>(raw)) {

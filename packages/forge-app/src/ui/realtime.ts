@@ -22,7 +22,6 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { realtime } from '@forge/bridge';
 import type { WikiFamily } from '@placard-wiki/domain';
 import { callBridge, type BridgeOutcome } from './bridge';
 
@@ -63,10 +62,7 @@ export interface RealtimeBanner {
   dismiss: () => void;
 }
 
-/**
- * Nomme le canal temps réel d'une page. Convention « à valider semaine 1 » :
- * un canal par page, l'abonnement filtre côté client sur l'auteur si besoin.
- */
+/** Nom du canal Realtime d'une page — convention « à valider semaine 1 ». */
 export function bannerChannel(pageId: string): string {
   return 'placard-banner:' + pageId;
 }
@@ -90,9 +86,11 @@ function normalizePayload(raw: string | RealtimeBannerPayload): RealtimeBannerPa
 
 /**
  * Ouvre l'abonnement au canal temps réel d'une page et renvoie la fonction de
- * désabonnement (utilisée comme cleanup d'effet). `pageId` vide → aucun
- * abonnement. Toute erreur d'abonnement est avalée : l'écran reste honnête
- * (bannière absente), jamais cassé.
+ * désabonnement. `pageId` vide → aucun abonnement. Toute erreur est avalée :
+ * l'écran reste honnête (bannière absente), jamais cassé.
+ *
+ * `@forge/bridge` est chargé à l'appel, jamais à l'importation : il lève hors
+ * d'un produit Atlassian. Même convention que l'app sœur `tickets-pieges`.
  */
 function openSubscription(
   pageId: string,
@@ -106,12 +104,14 @@ function openSubscription(
   let alive = true;
   let unsubscribe: (() => Promise<void>) | null = null;
 
-  void realtime
-    .subscribe<RealtimeBannerPayload>(bannerChannel(pageId), (payload) => {
-      if (!alive) return;
-      const normalized = normalizePayload(payload);
-      if (normalized) onBanner(normalized);
-    })
+  void import('@forge/bridge')
+    .then(({ realtime }) =>
+      realtime.subscribe<RealtimeBannerPayload>(bannerChannel(pageId), (payload) => {
+        if (!alive) return;
+        const normalized = normalizePayload(payload);
+        if (normalized) onBanner(normalized);
+      }),
+    )
     .then((subscription) => {
       if (!alive) {
         void subscription.unsubscribe();
