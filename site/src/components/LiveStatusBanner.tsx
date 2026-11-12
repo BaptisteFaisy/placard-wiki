@@ -65,7 +65,9 @@ export function LiveStatusBanner(): JSX.Element {
   return (
     <div className={`live-status ${live ? 'live-status-live' : 'live-status-snapshot'}`} aria-live="polite">
       <span className="live-status-text">{text}</span>
-      <span className="live-status-extra">{live ? t('liveDemoSiteWarning') : t('liveAutoRefreshNote')}</span>
+      <span className="live-status-extra">
+        {live ? `${t('liveAutoRefreshNote')} — ${t('liveDemoSiteWarning')}` : t('liveSnapshotNote')}
+      </span>
       <button type="button" className="live-refresh" onClick={refresh} disabled={refreshing}>
         {refreshing ? t('liveRefreshing') : t('liveRefresh')}
       </button>

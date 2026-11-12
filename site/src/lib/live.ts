@@ -59,8 +59,14 @@ export interface FetchLiveOptions {
 }
 
 const listeners = new Set<() => void>();
-let state: LiveState = initialState();
 let cache: { payload: LivePayload; at: number } | null = null;
+
+/**
+ * État exporté du flux — mis à jour à chaque étape (chargement, live,
+ * erreur). Une liaison de module : les consommateurs voient la valeur
+ * courante sans avoir à s'abonner.
+ */
+export let liveState: LiveState = initialState();
 
 /** État initial : pas d'URL configurée = snapshot assumé, sinon chargement. */
 function initialState(): LiveState {
@@ -71,7 +77,7 @@ function initialState(): LiveState {
 
 /** État courant du flux (subscription React via `subscribeLive`). */
 export function getLiveState(): LiveState {
-  return state;
+  return liveState;
 }
 
 /** Abonnement aux changements d'état — renvoie la fonction de désabonnement. */
@@ -84,7 +90,7 @@ export function subscribeLive(listener: () => void): () => void {
 
 /** Remplace l'état et prévient les abonnés. */
 function setState(next: LiveState): void {
-  state = next;
+  liveState = next;
   for (const listener of listeners) listener();
 }
 
@@ -106,6 +112,7 @@ function stringList(value: unknown): string[] {
 
 /** Extrait les métadonnées du site, sans faire confiance à la forme exacte. */
 function parseSite(raw: unknown): LiveSite {
+  if (typeof raw === 'string') return { name: raw };
   if (!isObject(raw)) return {};
   const name = typeof raw['name'] === 'string' ? raw['name'] : typeof raw['siteName'] === 'string' ? raw['siteName'] : undefined;
   const url = typeof raw['url'] === 'string' ? raw['url'] : typeof raw['baseUrl'] === 'string' ? raw['baseUrl'] : undefined;
@@ -119,6 +126,33 @@ function parseSite(raw: unknown): LiveSite {
 }
 
 /**
+ * Normalise un index de foyers : acceptée sous forme de table
+ * (pageId → foyer) comme de liste (foyers indexés par leur identifiant).
+ */
+function normalizeFoyers(raw: unknown): Record<string, Foyer> | null {
+  if (Array.isArray(raw)) {
+    const foyers: Record<string, Foyer> = {};
+    for (const foyer of raw) {
+      if (!isObject(foyer) || typeof foyer['id'] !== 'string') return null;
+      foyers[foyer['id']] = foyer as unknown as Foyer;
+    }
+    return foyers;
+  }
+  if (!isObject(raw)) return null;
+  return raw as unknown as Record<string, Foyer>;
+}
+
+/**
+ * Normalise le registre : acceptée sous forme de liste (comme
+ * REGISTRY_ROWS) comme de table indexée par identifiant de foyer.
+ */
+function normalizeRegistry(raw: unknown): RegistryRow[] | null {
+  if (Array.isArray(raw)) return raw as unknown as RegistryRow[];
+  if (!isObject(raw)) return null;
+  return Object.values(raw) as unknown as RegistryRow[];
+}
+
+/**
  * Validation MINIMALE de la forme : les clés attendues par le contrat, avec le
  * bon type de premier niveau. Une réponse qui ne respecte pas le contrat est
  * rejetée — jamais reinterpretée.
@@ -127,10 +161,12 @@ export function parseLivePayload(raw: unknown): LivePayload | null {
   if (!isObject(raw)) return null;
   if (typeof raw['generatedAt'] !== 'string') return null;
   if (raw['mode'] !== 'live') return null;
-  if (!isObject(raw['site'])) return null;
-  if (!Array.isArray(raw['registry'])) return null;
+  if (raw['site'] === undefined || raw['site'] === null) return null;
+  const registry = normalizeRegistry(raw['registry']);
+  const foyers = normalizeFoyers(raw['foyers']);
+  if (registry === null) return null;
+  if (foyers === null) return null;
   if (!isObject(raw['building'])) return null;
-  if (!isObject(raw['foyers'])) return null;
   if (!isObject(raw['budget'])) return null;
   if (!isObject(raw['coverage'])) return null;
   if (!isObject(raw['certificate'])) return null;
@@ -138,9 +174,9 @@ export function parseLivePayload(raw: unknown): LivePayload | null {
     generatedAt: raw['generatedAt'],
     mode: 'live',
     site: parseSite(raw['site']),
-    registry: raw['registry'] as unknown as RegistryRow[],
+    registry,
     building: raw['building'] as unknown as BuildingModel,
-    foyers: raw['foyers'] as unknown as Record<string, Foyer>,
+    foyers,
     budget: raw['budget'] as unknown as ScanBudget,
     coverage: raw['coverage'] as unknown as CoverageReport,
     certificate: raw['certificate'] as unknown as Certificate,

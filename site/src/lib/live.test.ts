@@ -153,4 +153,21 @@ describe('parseLivePayload — validation minimale de forme', () => {
     const payload = parseLivePayload({ ...VALID_PAYLOAD, site: {} }) as LivePayload;
     expect(payload.site.name).toBeUndefined();
   });
+
+  it('tolère un site donné comme un simple nom', () => {
+    const payload = parseLivePayload({ ...VALID_PAYLOAD, site: 'one-atlas-cndz' }) as LivePayload;
+    expect(payload.site.name).toBe('one-atlas-cndz');
+  });
+
+  it('tolère les foyers en liste et le registre en table', () => {
+    const foyers = Object.values(VALID_PAYLOAD.foyers);
+    const payload = parseLivePayload({
+      ...VALID_PAYLOAD,
+      foyers,
+      registry: { 'F-1': VALID_PAYLOAD.registry[0] },
+    }) as LivePayload;
+    expect(Object.keys(payload.foyers)).toEqual(['F-1']);
+    expect(payload.registry).toHaveLength(1);
+    expect(payload.registry[0]?.foyerId).toBe('F-1');
+  });
 });

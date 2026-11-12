@@ -12,6 +12,7 @@ import type { LivePayload } from '../lib/live.js';
 import { isObject, objectRecord, stringList } from './dataset.js';
 import type { OrphanPage, PlacardDataset, PropagationEntry, SpaceRef } from './dataset.js';
 import { defaultSettingsFor } from './settings.js';
+import { DEMO_SITE_NAME } from '../lib/live-config.js';
 
 const OWNER_METHODS: readonly OwnerMethod[] = ['declared-owner', 'last-editors', 'space-lead', 'teamwork-graph', 'adoption-queue'];
 
@@ -200,7 +201,8 @@ export function buildLiveDataset(payload: LivePayload): PlacardDataset {
   const rows = payload.registry;
   const spaces = spacesOf(bag, rows, payload.building);
   const titles = titlesOf(bag, rows);
-  const name = typeof bag['name'] === 'string' ? bag['name'] : payload.site.name ?? 'atlassian';
+  // Le nom du site balayé : celui du flux, sinon le site de démo connu.
+  const name = typeof bag['name'] === 'string' ? bag['name'] : payload.site.name ?? DEMO_SITE_NAME;
   const url = typeof bag['url'] === 'string' ? bag['url'] : payload.site.url;
   return {
     source: 'live',
