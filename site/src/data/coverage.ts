@@ -3,36 +3,24 @@
 // est déclarée, jamais masquée ; les DROITS MANQUANTS sont distingués de
 // « pas de données ».
 
-import type { CoverageReport } from '@placard-wiki/domain';
-
-/** L'état d'un gîte, tel que la passe l'a mesuré — jamais déduit. */
-export type GiteCoverageState = 'read' | 'unread' | 'inaccessible' | 'not-attempted';
-
-/** Le détail mesuré d'un gîte : lu, non lu, inaccessible. */
-export interface GiteCoverageDetail {
-  readonly pagesRead: number;
-  readonly pagesUnread: number;
-  readonly pagesInaccessible: number;
-  readonly state: GiteCoverageState;
-}
-
-/** Une ligne de couverture : la forme du domaine + la mesure. */
-export type GiteCoverageRow = CoverageReport['perGite'][number] & GiteCoverageDetail;
+import type { CoverageReportReelle, GiteCoverageRow, GiteCoverageState } from '@placard-wiki/domain';
 
 /**
- * Le rapport de couverture affiché : la forme du domaine, plus le pourcentage
- * et SA MÉTHODE. `coveragePercent` est `null` quand la couverture est
- * INDÉTERMINÉE (aucune passe) — jamais 0 %, qui dirait « rien trouvé » alors
- * que rien n'a été regardé.
+ * L'état d'un gîte et sa ligne : les types viennent du domaine — une seule
+ * source, pour que le site et l'app racontent la même chose.
  */
-export interface CoverageReportAffichee extends CoverageReport {
+export type { GiteCoverageRow, GiteCoverageState };
+
+/**
+ * Le rapport de couverture affiché : celui du domaine (le pourcentage, SA
+ * méthode et le détail gîte par gîte), en lecture seule pour l'écran.
+ *
+ * `coveragePercent` est `null` quand la couverture est INDÉTERMINÉE (aucune
+ * passe) — jamais 0 %, qui dirait « rien trouvé » alors que rien n'a été
+ * regardé.
+ */
+export interface CoverageReportAffichee extends CoverageReportReelle {
   readonly perGite: readonly GiteCoverageRow[];
-  readonly coveragePercent: number | null;
-  readonly gitesCovered: number;
-  readonly gitesTotal: number;
-  readonly method: string;
-  readonly pagesTargeted?: number;
-  readonly pagesRead?: number;
 }
 
 /** Le rapport de couverture de la dernière passe (synthétique, mode snapshot). */

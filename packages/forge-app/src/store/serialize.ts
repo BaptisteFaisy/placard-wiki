@@ -19,6 +19,7 @@ import type {
   RitualStepState,
   ScanBudget,
   SweepCursor,
+  Gite,
 } from '@placard-wiki/domain';
 import type { OwnerResolution } from '@placard-wiki/domain';
 import type { GiteScanRecord, GiteScanRow } from './ports';
@@ -140,7 +141,7 @@ export function locationFromRow(row: LocationRow): FoyerLocation {
 }
 
 /** Règle du gîte (§6) — miroir minimal du domaine (la table ne stocke pas le gîte). */
-function giteImpl(containerType: string): string {
+function giteImpl(containerType: string): Gite {
   if (containerType === 'version') return 'historique-de-versions';
   if (containerType === 'comment') return 'commentaires';
   if (containerType === 'attachment') return 'pieces-jointes';

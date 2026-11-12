@@ -1,79 +1,24 @@
 // Tests du client live : succès → live, délai dépassé → snapshot + raison,
-// forme invalide → snapshot. Le `fetch` est MOCKÉ — aucun réseau ici.
+// contrat non respecté → snapshot + raison. Le `fetch` est MOCKÉ — aucun
+// réseau ici.
+//
+// Le point dur : la réponse live est validée contre le contrat publié
+// (`docs/api-live.schema.json`). Une réponse qui ne le respecte pas n'est
+// JAMAIS affichée comme si elle était valide.
 
 import { describe, expect, it } from 'vitest';
 import { fetchLive, parseLivePayload, resetLiveCache } from './live.js';
 import type { LivePayload } from './live.js';
-
-/** Réponse minimale conforme au contrat du webtrigger. */
-const VALID_PAYLOAD = {
-  generatedAt: '2026-11-12T09:00:00Z',
-  mode: 'live',
-  site: { name: 'one-atlas-cndz', url: 'https://one-atlas-cndz.atlassian.net' },
-  registry: [
-    {
-      foyerId: 'F-1',
-      family: 'cloud-key',
-      maskedPreview: 'AKIA…(20)',
-      score: 95,
-      state: 'open',
-      spaceKey: 'PLACARDDEMO',
-      pageTitle: 'Runbook',
-      pageId: 'P-1',
-      locationCount: 2,
-      inCurrentVersion: true,
-      inHistory: false,
-      readersLow: 10,
-      readersHigh: 90,
-      sharing: 'space-default',
-      aiSurface: true,
-      lastSeenAt: '2026-11-12T08:00:00Z',
-    },
-  ],
-  building: { wings: [] },
-  foyers: {
-    'F-1': {
-      id: 'F-1',
-      fingerprint: 'a'.repeat(64),
-      family: 'cloud-key',
-      baseScore: 40,
-      score: 95,
-      scoreTerms: [],
-      state: 'open',
-      firstSeenAt: '2026-06-18T10:00:00Z',
-      lastSeenAt: '2026-11-12T08:00:00Z',
-      locations: [],
-    },
-  },
-  budget: {
-    day: '2026-11-12',
-    pagesScanned: 12,
-    attachmentsRead: 1,
-    attachmentsSkipped: 0,
-    llmCalls: 2,
-    tokens: 100,
-    costEstimate: 0.1,
-    skipped: [],
-  },
-  coverage: { perGite: [], blindSpots: [], missingRights: [] },
-  certificate: {
-    id: 'CERT-1',
-    scope: 'PLACARDDEMO',
-    issuedAt: '2026-11-12T09:00:00Z',
-    open: 1,
-    rotated: 0,
-    redacted: 0,
-    purged: 0,
-    residualExposure: '—',
-    blindSpots: [],
-    contentHash: 'sha256:abc',
-  },
-};
+import { checkContract, EXPECTED_CONTRACT_VERSION } from './contract.js';
+import { demoLivePayload } from '../test-fixtures/live-payload.js';
 
 /** Un `fetch` mocké qui répond avec le contrat attendu. */
-function okFetch(payload: unknown): typeof fetch {
+function okFetch(payload: unknown, headers: Record<string, string> = {}): typeof fetch {
   return (async () =>
-    new Response(JSON.stringify(payload), { status: 200, headers: { 'Content-Type': 'application/json' } })) as unknown as typeof fetch;
+    new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', ...headers },
+    })) as unknown as typeof fetch;
 }
 
 /** Un `fetch` mocké qui ne répond jamais — le timeout doit trancher. */
@@ -87,12 +32,23 @@ function hangingFetch(): typeof fetch {
 describe('fetchLive — succès', () => {
   it('une réponse conforme donne le statut live et la charge utile', async () => {
     resetLiveCache();
-    const result = await fetchLive({ url: 'https://exemple.test/live', fetchImpl: okFetch(VALID_PAYLOAD), force: true });
+    const result = await fetchLive({ url: 'https://exemple.test/live', fetchImpl: okFetch(demoLivePayload()), force: true });
     expect(result.ok).toBe(true);
     expect(result.reason).toBeNull();
     expect(result.payload?.mode).toBe('live');
     expect(result.payload?.registry).toHaveLength(1);
-    expect(result.payload?.foyers['F-1']?.id).toBe('F-1');
+    expect(result.payload?.foyers['foyer-hmac256:01234567']?.id).toBe('foyer-hmac256:01234567');
+  });
+
+  it('une réponse conforme et annoncée par l’en-tête de version est acceptée', async () => {
+    resetLiveCache();
+    const result = await fetchLive({
+      url: 'https://exemple.test/live',
+      fetchImpl: okFetch(demoLivePayload(), { 'X-Placard-Contract': EXPECTED_CONTRACT_VERSION }),
+      force: true,
+    });
+    expect(result.ok).toBe(true);
+    expect(result.reason).toBeNull();
   });
 });
 
@@ -115,7 +71,7 @@ describe('fetchLive — échec', () => {
     resetLiveCache();
     const result = await fetchLive({
       url: 'https://exemple.test/live',
-      fetchImpl: okFetch({ mode: 'live', generatedAt: '2026-11-12T09:00:00Z' }),
+      fetchImpl: okFetch('pas un objet'),
       retries: 0,
       force: true,
     });
@@ -126,21 +82,63 @@ describe('fetchLive — échec', () => {
 
   it('une URL absente donne la raison « not-configured »', async () => {
     resetLiveCache();
-    const result = await fetchLive({ url: '', fetchImpl: okFetch(VALID_PAYLOAD), force: true });
+    const result = await fetchLive({ url: '', fetchImpl: okFetch(demoLivePayload()), force: true });
     expect(result.ok).toBe(false);
     expect(result.reason).toBe('not-configured');
   });
 });
 
-describe('parseLivePayload — validation minimale de forme', () => {
+describe('fetchLive — contrat non respecté', () => {
+  it('une réponse hors contrat bascule sur snapshot et donne la raison', async () => {
+    resetLiveCache();
+    const broken = demoLivePayload();
+    delete broken['certificate'];
+    const result = await fetchLive({
+      url: 'https://exemple.test/live',
+      fetchImpl: okFetch(broken),
+      retries: 0,
+      force: true,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('contract-mismatch');
+    expect(result.payload).toBeNull();
+  });
+
+  it('une clé inconnue dans la réponse est refusée', async () => {
+    resetLiveCache();
+    const broken = { ...demoLivePayload(), surprise: 'champ non décrit' };
+    const result = await fetchLive({
+      url: 'https://exemple.test/live',
+      fetchImpl: okFetch(broken),
+      retries: 0,
+      force: true,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('contract-mismatch');
+  });
+
+  it('une version d’en-tête inconnue est refusée', async () => {
+    resetLiveCache();
+    const result = await fetchLive({
+      url: 'https://exemple.test/live',
+      fetchImpl: okFetch(demoLivePayload(), { 'X-Placard-Contract': '99.0.0' }),
+      retries: 0,
+      force: true,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('contract-mismatch');
+  });
+});
+
+describe('parseLivePayload — contrôle du contrat', () => {
   it('accepte une charge utile conforme', () => {
-    const payload = parseLivePayload(VALID_PAYLOAD);
+    const payload = parseLivePayload(demoLivePayload());
     expect(payload).not.toBeNull();
-    expect(payload?.site.name).toBe('one-atlas-cndz');
+    expect(payload?.site.name).toBe('one-atlas-cndz.atlassian.net');
   });
 
   it('refuse un mode autre que live', () => {
-    expect(parseLivePayload({ ...VALID_PAYLOAD, mode: 'snapshot' })).toBeNull();
+    expect(parseLivePayload({ ...demoLivePayload(), mode: 'snapshot' })).toBeNull();
   });
 
   it('refuse une charge utile sans les clés attendues', () => {
@@ -149,30 +147,51 @@ describe('parseLivePayload — validation minimale de forme', () => {
     expect(parseLivePayload('pas un objet')).toBeNull();
   });
 
-  it('tolère un site sans métadonnées', () => {
-    const payload = parseLivePayload({ ...VALID_PAYLOAD, site: {} }) as LivePayload;
-    expect(payload.site.name).toBeUndefined();
+  it('refuse un site sans les métadonnées exigées par le contrat', () => {
+    expect(parseLivePayload({ ...demoLivePayload(), site: {} })).toBeNull();
   });
 
-  it('tolère un site donné comme un simple nom', () => {
-    const payload = parseLivePayload({ ...VALID_PAYLOAD, site: 'one-atlas-cndz' }) as LivePayload;
-    expect(payload.site.name).toBe('one-atlas-cndz');
+  it('refuse les foyers et le registre sous une forme non contractuelle', () => {
+    const payload = demoLivePayload();
+    const foyers = Object.values(payload['foyers'] as Record<string, unknown>);
+    const broken = { ...payload, foyers, registry: { 'foyer-hmac256:01234567': (payload['registry'] as unknown[])[0] } };
+    expect(parseLivePayload(broken)).toBeNull();
   });
 
-  it('tolère les foyers en liste et le registre en table', () => {
-    const foyers = Object.values(VALID_PAYLOAD.foyers);
-    const payload = parseLivePayload({
-      ...VALID_PAYLOAD,
-      foyers,
-      registry: { 'F-1': VALID_PAYLOAD.registry[0] },
-    }) as LivePayload;
-    expect(Object.keys(payload.foyers)).toEqual(['F-1']);
-    expect(payload.registry).toHaveLength(1);
-    expect(payload.registry[0]?.foyerId).toBe('F-1');
+  it('refuse une famille hors énumération', () => {
+    const payload = demoLivePayload();
+    const registry = payload['registry'] as Array<Record<string, unknown>>;
+    const broken = { ...payload, registry: [{ ...registry[0], family: 'famille-inventee' }] };
+    expect(parseLivePayload(broken)).toBeNull();
+  });
+
+  it('refuse un état de foyer hors énumération', () => {
+    const payload = demoLivePayload();
+    const foyers = payload['foyers'] as Record<string, Record<string, unknown>>;
+    const first = Object.keys(foyers)[0] as string;
+    const broken = { ...payload, foyers: { [first]: { ...foyers[first], state: 'etat-invente' } } };
+    expect(parseLivePayload(broken)).toBeNull();
+  });
+});
+
+describe('checkContract — en-tête et corps', () => {
+  it('un en-tête absent laisse le corps faire foi', () => {
+    expect(checkContract(demoLivePayload(), null).ok).toBe(true);
+    expect(checkContract(demoLivePayload(), undefined).ok).toBe(true);
+  });
+
+  it('un en-tête égal à la version attendue est accepté', () => {
+    expect(checkContract(demoLivePayload(), EXPECTED_CONTRACT_VERSION).ok).toBe(true);
+  });
+
+  it('un en-tête contradictoire est refusé avec la raison', () => {
+    const verdict = checkContract(demoLivePayload(), '0.9.0');
+    expect(verdict.ok).toBe(false);
+    if (!verdict.ok) expect(verdict.detail).toContain('0.9.0');
   });
 
   it('un flux sans couverture par gîte rend une couverture indéterminée, jamais 0 %', () => {
-    const payload = parseLivePayload(VALID_PAYLOAD) as LivePayload;
+    const payload = parseLivePayload(demoLivePayload()) as LivePayload;
     expect(payload.coverage.coveragePercent).toBeNull();
     expect(payload.coverage.coveragePercent).not.toBe(0);
   });
@@ -187,7 +206,7 @@ describe('parseLivePayload — validation minimale de forme', () => {
       gitesTotal: 7,
       method: 'Couverture = 264 ÷ (7 × 264) = 14.3 %.',
     };
-    const payload = parseLivePayload({ ...VALID_PAYLOAD, coverage }) as LivePayload;
+    const payload = parseLivePayload({ ...demoLivePayload(), coverage }) as LivePayload;
     expect(payload.coverage.coveragePercent).toBe(14.3);
     expect(payload.coverage.gitesCovered).toBe(1);
     expect(payload.coverage.method).toContain('14.3');

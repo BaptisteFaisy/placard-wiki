@@ -82,8 +82,8 @@ export interface FoyerLocation {
   redactedAt?: string;
   /** `vanished` : la page a été supprimée après détection (§24). */
   status: 'present' | 'redacted' | 'vanished';
-  /** Le gîte déduit, pour l'affichage (§6). */
-  gite: string;
+  /** Le gîte déduit, pour l'affichage (§6) — énumération fermée (contrat live). */
+  gite: Gite;
 }
 
 /** Fourchette de lecteurs potentiels (§8) — jamais un nombre unique. */

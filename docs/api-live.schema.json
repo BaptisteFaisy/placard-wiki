@@ -1,0 +1,985 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:placard-wiki:contract:api-live:1.1.0",
+  "title": "Placard du wiki — contrat public de l’API live",
+  "description": "Charge utile servie par le webtrigger `pw-public-demo` (Forge). Version 1.1.0. Règle absolue du contrat : aucune valeur brute — empreintes HMAC, aperçus masqués, scores et termes seulement (§23). La version est portée par le schéma (`x-contract-version`) et par l’en-tête HTTP `X-Placard-Contract`.",
+  "x-contract-version": "1.1.0",
+  "x-contract-header": "X-Placard-Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "generatedAt",
+    "mode",
+    "site",
+    "registry",
+    "building",
+    "foyers",
+    "budget",
+    "coverage",
+    "certificate"
+  ],
+  "properties": {
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Horodatage de la production de la charge utile (UTC, ISO 8601)."
+    },
+    "mode": {
+      "const": "live",
+      "description": "Toujours `live` : la charge utile publique décrit un balayage réel, jamais le jeu embarqué."
+    },
+    "site": {
+      "$ref": "#/$defs/site"
+    },
+    "registry": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/registryRow"
+      },
+      "description": "Le registre : une ligne par foyer, triée par score décroissant."
+    },
+    "building": {
+      "$ref": "#/$defs/building"
+    },
+    "foyers": {
+      "type": "object",
+      "description": "Les foyers, indexés par identifiant de foyer.",
+      "propertyNames": {
+        "pattern": "^foyer-.+$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/foyer"
+      }
+    },
+    "budget": {
+      "$ref": "#/$defs/budget"
+    },
+    "coverage": {
+      "$ref": "#/$defs/coverage"
+    },
+    "certificate": {
+      "$ref": "#/$defs/certificate"
+    },
+    "refresh": {
+      "$ref": "#/$defs/refreshReport",
+      "description": "Optionnel — rapport de la passe bornée demandée par `?sweep=1`."
+    },
+    "queued": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optionnel — espace mis en file par `?queue=<ESPACE>`."
+    },
+    "probe": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/probeResult"
+      },
+      "description": "Optionnel — sonde des points d'accès demandée par `?probe=1`."
+    }
+  },
+  "$defs": {
+    "site": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "url",
+        "spaces",
+        "titles"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nom du site Confluence balayé."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL du site Confluence balayé."
+        },
+        "spaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/space"
+          },
+          "description": "Les espaces réellement balayés."
+        },
+        "titles": {
+          "type": "object",
+          "description": "Titres masqués des pages balayées (identifiant de page → titre).",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "space": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "fr",
+        "en"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fr": {
+          "type": "string"
+        },
+        "en": {
+          "type": "string"
+        }
+      }
+    },
+    "registryRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "foyerId",
+        "family",
+        "maskedPreview",
+        "score",
+        "state",
+        "spaceKey",
+        "pageTitle",
+        "pageId",
+        "locationCount",
+        "inCurrentVersion",
+        "inHistory",
+        "readersLow",
+        "readersHigh",
+        "sharing",
+        "aiSurface",
+        "lastSeenAt"
+      ],
+      "properties": {
+        "foyerId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "family": {
+          "$ref": "#/$defs/family"
+        },
+        "maskedPreview": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Aperçu masqué — jamais la valeur brute (§23)."
+        },
+        "score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "state": {
+          "$ref": "#/$defs/foyerState"
+        },
+        "spaceKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pageTitle": {
+          "type": "string"
+        },
+        "pageId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "locationCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inCurrentVersion": {
+          "type": "boolean"
+        },
+        "inHistory": {
+          "type": "boolean"
+        },
+        "readersLow": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "readersHigh": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sharing": {
+          "$ref": "#/$defs/sharingState"
+        },
+        "aiSurface": {
+          "type": "boolean"
+        },
+        "ownerRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ownerMethod": {
+          "$ref": "#/$defs/ownerMethod"
+        },
+        "lastSeenAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "foyer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "fingerprint",
+        "family",
+        "baseScore",
+        "score",
+        "scoreTerms",
+        "state",
+        "firstSeenAt",
+        "lastSeenAt",
+        "locations"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^hmac256:[0-9a-f]{32}$",
+          "description": "HMAC-SHA-256 tronqué du secret, clé propre à l’installation."
+        },
+        "family": {
+          "$ref": "#/$defs/family"
+        },
+        "baseScore": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "scoreTerms": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/scoreTerm"
+          },
+          "description": "Chaque terme appliqué au score, avec sa méthode (§8)."
+        },
+        "state": {
+          "$ref": "#/$defs/foyerState"
+        },
+        "firstSeenAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastSeenAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "rotatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "rotationEvidenceRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dismissedReason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dismissedReviewAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "locations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/location"
+          }
+        },
+        "primaryPageId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "spaceKey": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "scoreTerm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "points",
+        "label",
+        "method"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "points": {
+          "type": "integer"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "foyerId",
+        "containerType",
+        "containerAri",
+        "pageId",
+        "field",
+        "maskedPreview",
+        "detectedAt",
+        "status",
+        "gite"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "foyerId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "containerType": {
+          "$ref": "#/$defs/containerType"
+        },
+        "containerAri": {
+          "type": "string",
+          "pattern": "^ari:.+$"
+        },
+        "pageId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "versionNumber": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "field": {
+          "$ref": "#/$defs/contentField"
+        },
+        "charStart": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "charEnd": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maskedPreview": {
+          "type": "string",
+          "minLength": 1
+        },
+        "detectedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "redactedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "status": {
+          "$ref": "#/$defs/locationStatus"
+        },
+        "gite": {
+          "$ref": "#/$defs/gite"
+        }
+      }
+    },
+    "building": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wings"
+      ],
+      "properties": {
+        "wings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/wing"
+          }
+        }
+      }
+    },
+    "wing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "spaceKey",
+        "floors",
+        "drafts"
+      ],
+      "properties": {
+        "spaceKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "floors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/floor"
+          }
+        },
+        "drafts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/draft"
+          }
+        }
+      }
+    },
+    "floor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "depth",
+        "rooms"
+      ],
+      "properties": {
+        "depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rooms": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/room"
+          }
+        }
+      }
+    },
+    "room": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pageId",
+        "title",
+        "audience",
+        "locked",
+        "openWindow",
+        "maxDanger",
+        "cellarOpen",
+        "poster",
+        "walled",
+        "sealCount",
+        "ribbonCount"
+      ],
+      "properties": {
+        "pageId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string"
+        },
+        "audience": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "openWindow": {
+          "type": "boolean"
+        },
+        "maxDanger": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "cellarOpen": {
+          "type": "boolean"
+        },
+        "poster": {
+          "type": "boolean"
+        },
+        "walled": {
+          "type": "boolean"
+        },
+        "sealCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ribbonCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "draft": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fromPageId",
+        "toPageId",
+        "fingerprint"
+      ],
+      "properties": {
+        "fromPageId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "toPageId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^hmac256:[0-9a-f]{32}$"
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "day",
+        "pagesScanned",
+        "attachmentsRead",
+        "attachmentsSkipped",
+        "llmCalls",
+        "tokens",
+        "costEstimate",
+        "skipped"
+      ],
+      "properties": {
+        "day": {
+          "type": "string",
+          "format": "date"
+        },
+        "pagesScanned": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "attachmentsRead": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "attachmentsSkipped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "llmCalls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "costEstimate": {
+          "type": "number",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/skippedFile"
+          }
+        },
+        "lastPassMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "coverageNote": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "skippedFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reason",
+        "count"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "perGite",
+        "blindSpots",
+        "missingRights"
+      ],
+      "properties": {
+        "perGite": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/giteCoverage"
+          }
+        },
+        "blindSpots": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "missingRights": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "lastPassAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "coveragePercent": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "La couverture réelle en % ; `null` quand elle est INDÉTERMINÉE (aucune passe) — jamais 0 %."
+        },
+        "gitesCovered": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Gîtes effectivement couverts (au moins une page lue)."
+        },
+        "gitesTotal": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Gîtes visés (§6)."
+        },
+        "method": {
+          "type": "string",
+          "minLength": 1,
+          "description": "La méthode du décompte — un pourcentage sans sa méthode ne vaut rien."
+        },
+        "pagesTargeted": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Pages visées par la passe qui a produit la mesure."
+        },
+        "pagesRead": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Pages lues, tous gîtes confondus."
+        }
+      }
+    },
+    "giteCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gite",
+        "scanned",
+        "skipped"
+      ],
+      "properties": {
+        "gite": {
+          "$ref": "#/$defs/gite"
+        },
+        "scanned": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pagesRead": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Pages où le gîte a été lu."
+        },
+        "pagesUnread": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Pages accessibles dont une partie n’a pas pu être lue."
+        },
+        "pagesInaccessible": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Pages où l’accès a été refusé (droits manquants)."
+        },
+        "state": {
+          "$ref": "#/$defs/giteCoverageState"
+        }
+      }
+    },
+    "certificate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "scope",
+        "issuedAt",
+        "open",
+        "rotated",
+        "redacted",
+        "purged",
+        "residualExposure",
+        "blindSpots",
+        "contentHash"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^cert:[0-9a-f]{16}$"
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "issuedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "open": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rotated": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "redacted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "purged": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "residualExposure": {
+          "type": "string",
+          "minLength": 1
+        },
+        "blindSpots": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "contentHash": {
+          "type": "string",
+          "pattern": "^hmac256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "family": {
+      "type": "string",
+      "description": "Les onze familles de détection (§7).",
+      "enum": [
+        "cloud-key",
+        "platform-token",
+        "private-key",
+        "signed-token",
+        "plaintext-password",
+        "bank-data",
+        "identity",
+        "suspicious-string",
+        "risky-file",
+        "connection-string",
+        "credential-table"
+      ]
+    },
+    "foyerState": {
+      "type": "string",
+      "description": "Les états du rituel (§4, §9).",
+      "enum": [
+        "open",
+        "rotation-attested",
+        "redacted",
+        "purge-requested",
+        "purged",
+        "purge-impossible",
+        "sealed",
+        "dismissed"
+      ]
+    },
+    "gite": {
+      "type": "string",
+      "description": "Les sept gîtes (§6).",
+      "enum": [
+        "corps-de-page",
+        "commentaires",
+        "pieces-jointes",
+        "historique-de-versions",
+        "modeles-de-page",
+        "titres-et-etiquettes",
+        "description-espace"
+      ]
+    },
+    "containerType": {
+      "type": "string",
+      "enum": [
+        "page",
+        "version",
+        "comment",
+        "attachment",
+        "template",
+        "space-desc"
+      ]
+    },
+    "contentField": {
+      "type": "string",
+      "enum": [
+        "body",
+        "title",
+        "labels",
+        "description",
+        "filename",
+        "text"
+      ]
+    },
+    "locationStatus": {
+      "type": "string",
+      "enum": [
+        "present",
+        "redacted",
+        "vanished"
+      ]
+    },
+    "sharingState": {
+      "type": "string",
+      "enum": [
+        "restricted",
+        "space-default",
+        "anyone-with-link",
+        "public"
+      ]
+    },
+    "ownerMethod": {
+      "type": "string",
+      "enum": [
+        "declared-owner",
+        "last-editors",
+        "space-lead",
+        "teamwork-graph",
+        "adoption-queue"
+      ]
+    },
+    "refreshReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "status",
+        "pagesScanned",
+        "foyersTouched",
+        "honesty"
+      ],
+      "properties": {
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "terminée",
+            "tranche bornée (passe à reprendre)",
+            "erreur"
+          ]
+        },
+        "pagesScanned": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "foyersTouched": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blindSpots": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "honesty": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "probeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "status"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "integer"
+        },
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "giteCoverageState": {
+      "type": "string",
+      "enum": [
+        "read",
+        "unread",
+        "inaccessible",
+        "not-attempted"
+      ],
+      "description": "L’état d’un gîte, tel que la passe l’a mesuré — jamais déduit."
+    }
+  }
+}

@@ -4,6 +4,7 @@ export * from './ai-verdict';
 export * from './score-terms';
 export * from './sql';
 export * from './bridge';
+export * from './contract';
 
 /** Version du schéma de données wiki : toute rupture de format l'incrémente. */
 export const WIKI_SCHEMA_VERSION = '1.0.0';
