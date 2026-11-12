@@ -218,6 +218,19 @@ def installer_dependances():
         return "aucun verrou de dépendances dans le clone"
     if not shutil.which("pnpm") and not shutil.which("corepack"):
         return "ni pnpm ni corepack sur le PATH du runner"
+    # Le monorepo consomme `placard` par sous-module (`vendor/placard`) : sans
+    # lui, `pnpm install` n'installe aucun des paquets réutilisés et la
+    # validation échoue sur « Cannot find module '@placard/core' » — un faux
+    # négatif qui bloquerait la file alors que la résolution est bonne.
+    # Mesuré le 12 novembre 2026 : premier vrai conflit résolu par Hermes, rien
+    # de poussé pour cette raison.
+    if os.path.exists(".gitmodules"):
+        code, sortie = _lancer(["git", "submodule", "update", "--init",
+                                 "--depth", "1"], INSTALL_TIMEOUT_S)
+        if code is None:
+            return "sous-module non initialisé (non concluant)"
+        if code != 0:
+            return "sous-module vendor/placard non initialisé"
     if shutil.which("corepack"):
         _lancer(["corepack", "enable"], 60)
         _lancer(["corepack", "prepare", "pnpm@9.15.9", "--activate"], 90)
