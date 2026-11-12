@@ -170,22 +170,25 @@ const PAGE_GITES: readonly GiteReader[] = [
  * manquants, 401) est déclaré en angle mort ; il ne fait pas perdre la page
  * entière — mesuré le 12 novembre 2026 : l'identité de l'app n'a accès qu'à
  * la recherche, pas aux points d'accès directs de contenu.
+ *
+ * Renvoie aussi les échecs : c'est au tour de la page de décider si l'échec
+ * est un DROIT manquant (page entière illisible) ou un angle mort partiel.
  */
 async function readPageGites(
   ctx: ServiceContext,
   pageId: string,
-  acc: ScanAccumulator,
-): Promise<ScannedItem[]> {
+): Promise<{ items: ScannedItem[]; failures: string[] }> {
   const items: ScannedItem[] = [];
+  const failures: string[] = [];
   for (const gite of PAGE_GITES) {
     try {
       items.push(...await gite.read(ctx.confluence, pageId));
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      acc.blindSpots.push(`Gîte « ${gite.gite} » de la page ${pageId} illisible : ${reason}.`);
+      failures.push(`« ${gite.gite} » : ${reason}`);
     }
   }
-  return items;
+  return { items, failures };
 }
 
 /**
@@ -200,15 +203,21 @@ export async function scanPageInto(
   disabled: readonly WikiFamily[],
 ): Promise<void> {
   const detectedAt = ctx.clock.now();
-  const items = await readPageGites(ctx, pageId, acc);
+  const { items, failures } = await readPageGites(ctx, pageId);
   if (items.length === 0) {
+    // Page entièrement illisible : c'est un **droit manquant** tant que
+    // l'inverse n'est pas prouvé (§25.18). « Pas de données » serait un
+    // mensonge : on Declare l'accès refusé, la page ne part pas en angle
+    // mort muet, et la raison reste lisible.
     acc.pageScans.push({
       pageId, contentHash: '', versionScanned: 0, scannedAt: detectedAt,
       detectorsVersion: DETECTORS_VERSION, llmCalls: 0, tokens: 0,
-      skippedReason: 'page illisible (aucun gîte lu) : déclaré, pas masqué',
+      skippedReason: `droits manquants : page ${pageId} illisible (${failures.join(' ; ')}) — accès refusé, pas absence de données`,
     });
-    acc.blindSpots.push(`Page ${pageId} : aucun gîte lisible.`);
     return;
+  }
+  if (failures.length > 0) {
+    acc.blindSpots.push(`Gîtes illisibles de la page ${pageId} : ${failures.join(' ; ')}.`);
   }
   const page = await ctx.confluence.getPage(pageId).catch(() => null);
   if (page !== null) acc.pageSpace.set(pageId, page.spaceKey);
