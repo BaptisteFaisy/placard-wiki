@@ -40,7 +40,11 @@ import { resolveOwner } from './owner';
 /** La demande de purge, et ce que l'app a pu en faire. */
 export interface PurgeServiceResult {
   request: PurgeRequest;
-  /** Ce que l'API permet : mesuré, `true` — la suppression d'une version répond 204. */
+  /**
+   * L'app peut-elle purger via l'API : `true` seulement si l'identité de l'app
+   * accède à l'historique (probe sans 401/403). Sinon `false`, même si la
+   * plateforme le permet pour un administrateur (204 mesuré, porté par `reason`).
+   */
   apiCanPurge: boolean;
   /** L'app a-t-elle exécuté la purge elle-même ? */
   executed: boolean;
@@ -184,14 +188,14 @@ async function requestPurgeBlocked(
   probe: { canPurge: boolean; reason: string },
   params: PurgeHistoryParams,
 ): Promise<PurgeServiceResult> {
-  const outcome = purgeHistory(foyer, targets, true, false, params);
+  const outcome = purgeHistory(foyer, targets, probe.canPurge, false, params);
   for (const request of outcome.requests) await ctx.store.purgeRequests.put(request);
   const updated: Foyer = { ...foyer, state: outcome.foyerState };
   await ctx.store.saveFoyer(updated);
   await persistSteps(ctx, updated);
   return {
     request: outcome.requests[0] as PurgeRequest,
-    apiCanPurge: true,
+    apiCanPurge: probe.canPurge,
     executed: false,
     verified: false,
     reason: probe.reason,
