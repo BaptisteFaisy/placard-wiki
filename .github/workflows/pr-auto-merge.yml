@@ -287,7 +287,7 @@ jobs:
           MERGIFY_QUEUE: ${{ vars.MERGIFY_QUEUE }}
         run: |
           set -euo pipefail
-          export PATH="$HOME/bin:/usr/local/bin:/usr/bin:$PATH" # gh + jq : r630 en espace user (runners r630-placard-wiki-01..04)
+          export PATH="$HOME/.local/node/bin:$HOME/bin:/usr/local/bin:/usr/bin:$PATH" # gh + jq + node/pnpm : r630 en espace user
           if [ "${PAT_OK:-false}" != "true" ]; then
             echo "AUTOMERGE_PAT absent : file en pause (voir l'en-tête du workflow)"
             echo "matrix=[]" >> "$GITHUB_OUTPUT"
@@ -469,6 +469,13 @@ jobs:
           MODEL_API_URL: ${{ vars.MODEL_API_URL }}
           HERMES_AGENT_RESOLVE: ${{ vars.HERMES_AGENT_RESOLVE }}
           HERMES_AGENT_SCOPE: ${{ vars.HERMES_AGENT_SCOPE }}
+          # Porte de validation (`compilation_gate.py`) : `1` autorise
+          # l'installation des dépendances dans le clone du balayeur pour que la
+          # toolchain du dépôt (`pnpm verify`) valide vraiment une résolution qui
+          # touche du code. Borné (180 s + 150 s) et best effort : sans pnpm, sans
+          # verrou ou hors délai, la porte saute **et le dit** dans le compte rendu.
+          HERMES_GATE_INSTALL: ${{ vars.HERMES_GATE_INSTALL }}
+          HERMES_GATE_CMD: ${{ vars.HERMES_GATE_CMD }}
           FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
           FIREWORKS_MODEL: ${{ vars.FIREWORKS_MODEL }}
           FIREWORKS_AGENT_RESOLVE: ${{ vars.FIREWORKS_AGENT_RESOLVE }}
@@ -488,7 +495,7 @@ jobs:
           STRICT: ${{ needs.discover.outputs.strict }}
           QUEUE: ${{ needs.discover.outputs.queue }}
         run: |
-          export PATH="$HOME/bin:/usr/local/bin:/usr/bin:$PATH" # gh + jq : r630 en espace user (runners r630-placard-wiki-01..04)
+          export PATH="$HOME/.local/node/bin:$HOME/bin:/usr/local/bin:/usr/bin:$PATH" # gh + jq + node/pnpm : r630 en espace user
           ghe() { GH_TOKEN="$GH_ECRITURE" gh "$@"; } # écritures : identité du PAT
           # ── lectures en REST (v19) ──────────────────────────────────────
           # `gh pr checks` et `gh pr view --json` interrogent GraphQL. Le jeton
