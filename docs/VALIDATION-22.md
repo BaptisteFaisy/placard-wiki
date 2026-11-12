@@ -113,15 +113,24 @@ Premier passage de `forge lint` et `forge build` avec les vraies clés
 - `sql` (engine mysql), `llm` (claude), `action`/`rovo:mcp`/`rovo:agent`/`rovo:skill`,
   `trigger` (événements AVI) et `webtrigger` : acceptés sans erreur par le lint.
 
-### Mesuré par `forge build` (bloqueur identifié, correctif en cours)
+### Mesuré par `forge build` / `deploy` / `install` — 12 novembre 2026
 
 - Le bundler Forge (webpack + ts-loader) exige un `tsconfig.json` dans le
   dossier de l'app — ajouté (`packages/forge-app/tsconfig.json`, hérite de la
   racine, `noEmit: false` sinon « TypeScript emitted no output »).
 - **Webpack ne résout PAS les imports relatifs avec extension `.js` vers les
   fichiers `.ts`** (« Can't resolve './resolver.js' ») — conforme à la contrainte
-  mesurée sur tickets-pieges. Correctif en deux temps : (1) codemod des imports
-  sans extension dans `packages/*` ; (2) PR amont vers `placard` pour ses quatre
-  paquets réutilisés (core, detectors, analysis, ritual) — jamais de copie.
-- État au moment de cette note : `forge lint` ✅ 0 erreur ; `forge build` ⏳
-  en attente du codemod (1) et de la PR amont (2).
+  mesurée sur tickets-pieges. Corrigé en deux temps : (1) codemod des imports
+  sans extension dans `packages/*` (PR #24) ; (2) PR amont `placard` #34
+  (fusionnée) pour les quatre paquets réutilisés — aucune copie.
+- **`forge build` : ✅ réussi** (tag 437be0da-2f34-48b7-b3eb-d928dc628710) après
+  bump du sous-module vers placard `6664cfc`.
+- **`forge deploy` : ✅ v2.0.0 déployée sur l'environnement `development`**
+  (l'avis d'éligibilité « Runs on Atlassian » est informatif — modules Rovo
+  en Preview).
+- **`forge install` : ✅ installée sur le site réel** `one-atlas-cndz.atlassian.net`
+  (Confluence, environnement development, scopes confirmés) :
+  `https://one-atlas-cndz.atlassian.net/wiki/apps/dc47d23f-e4cd-4681-bb64-14ac02ea1c98/f111a00f-824c-499c-8735-eaa68ab44ac5/placard`
+- Restent à valider en situation (prototypes de la semaine 1) : purge d'une
+  version précise, lecture binaire des pièces jointes, Realtime ciblé,
+  `asUser()` en écriture, état de partage via API, groupes imbriqués.
