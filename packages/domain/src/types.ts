@@ -10,6 +10,7 @@ import type {
   ContainerType,
   ContentField,
   FoyerState,
+  Gite,
   OwnerMethod,
   SharingState,
   WikiFamily,
@@ -237,4 +238,91 @@ export interface AttachmentScanRecord {
   readState: 'read' | 'not-read' | 'too-large' | 'not-text';
   skippedReason?: string;
   findingsCount: number;
+}
+
+/**
+ * Verdict « prêt à activer l'IA » (§13, §27). Quatre états, jamais un oui/non :
+ * `indéterminé` quand la couverture est inconnue, `refusé` quand activer
+ * exposerait trop, `à-nettoyer` quand il reste des foyers à traiter, `prêt`
+ * quand rien n'expose plus.
+ */
+export type AiActivationVerdict = 'prêt' | 'à-nettoyer' | 'refusé' | 'indéterminé';
+
+/** Le verdict et la règle qui l'a produit — affichés ensemble, jamais un verdict nu. */
+export interface AiActivationVerdictDetail {
+  verdict: AiActivationVerdict;
+  /** La règle appliquée, avec ses seuils — auditable, pas une boîte noire. */
+  rule: string;
+}
+
+/**
+ * Couverture du balayage en gîtes (§6, §14) : combien de gîtes couverts, sur
+ * combien, et comment le décompte a été fait. `known: false` signifie qu'on
+ * ne sait pas ce qu'il reste à balayer → le verdict devient `indéterminé`.
+ */
+export interface GiteCoverage {
+  covered: number;
+  total: number;
+  /** `false` : couverture inconnue (aucune passe budgétée enregistrée). */
+  known: boolean;
+  /** La méthode du décompte — affichée, jamais un chiffre nu (§8). */
+  method: string;
+  /** Gîtes non couverts, déclarés — jamais masqués (§19). */
+  uncovered: Gite[];
+}
+
+/** Répartition par famille des foyers ouverts (§8). */
+export interface AiActivationFamilyAggregate {
+  family: WikiFamily;
+  count: number;
+  maxDanger: number;
+}
+
+/** Foyers ouverts : nombre, danger maximal (avec ses termes), familles (§8). */
+export interface OpenFoyersSummary {
+  count: number;
+  maxDanger: number;
+  /** Termes appliqués au danger maximal — la méthode, pas la conclusion (§8). */
+  maxDangerTerms: AppliedScoreTerm[];
+  byFamily: AiActivationFamilyAggregate[];
+}
+
+/** Foyers exposés à l'IA : pages présumées lisibles par Rovo (§13). */
+export interface AiExposedFoyers {
+  count: number;
+  /** Hypothèse conservatrice — jamais un recensement exact de l'index Rovo. */
+  presumedIndexed: number;
+  method: string;
+}
+
+/** Exposition résiduelle : fourchette de lecteurs potentiels, avec sa méthode (§8). */
+export interface ResidualAiExposure {
+  readersLow: number;
+  readersHigh: number;
+  method: string;
+  caveats: string[];
+}
+
+/**
+ * Le certificat « prêt à activer l'IA » (§13, §27) : ce qu'on s'apprête à
+ * donner à lire à l'assistant, chiffré et daté, pour un auditeur. Aucune
+ * valeur brute de secret — que des compteurs, fourchettes, méthodes, angles
+ * morts et une empreinte d'intégrité.
+ */
+export interface AiActivationCertificate {
+  id: string;
+  /** Périmètre : clé d'espace, ou `site`. */
+  scope: string;
+  issuedAt: string;
+  /** Surface IA du périmètre, toujours en hypothèse conservatrice (§13). */
+  aiSurface: AiSurface;
+  coverage: GiteCoverage;
+  openFoyers: OpenFoyersSummary;
+  aiExposedFoyers: AiExposedFoyers;
+  residualExposure: ResidualAiExposure;
+  /** Angles morts déclarés : whiteboards, captures d'écran, droits manquants… */
+  blindSpots: string[];
+  verdict: AiActivationVerdictDetail;
+  /** HMAC-SHA-256 de la charge utile canonique, clé d'installation — jamais journalisée. */
+  contentHash: string;
 }
