@@ -24,6 +24,7 @@ import { FAMILY_LABELS } from '@placard-wiki/domain';
 import type { Foyer, PageExposure, ScanBudget, WikiFamily } from '@placard-wiki/domain';
 
 import type { ServiceContext, SweepResult } from './ports';
+import { GITE_ORDER, NOT_ATTEMPTED_GITES, NOT_ATTEMPTED_REASON } from './coverage';
 import { computePageExposure } from './exposure';
 import { scoreFoyer } from './scoring';
 import { emptyAccumulator, scanPageInto } from './scan-page';
@@ -189,6 +190,33 @@ async function updateBudget(ctx: ServiceContext, acc: ScanAccumulator, pages: nu
   await ctx.store.budget.put(budget);
 }
 
+/**
+ * Écrit l'état de chaque gîte : lu, non lu, inaccessible, avec la raison.
+ *
+ * C'est la **couverture réelle** (§14, §19) : elle est mesurée page par page
+ * pendant la passe, puis relue telle quelle. Les gîtes que la passe de pages
+ * ne tente jamais (modèles, description d'espace — §6) sont écrits avec
+ * `pagesRead = 0` et la raison « angle mort déclaré » : ils ne sont ni lus ni
+ * refusés, ils sont **hors de portée**, et c'est dit.
+ */
+async function persistGiteCoverage(ctx: ServiceContext, acc: ScanAccumulator, passAt: string): Promise<void> {
+  for (const gite of GITE_ORDER) {
+    const outcome = acc.giteOutcomes.get(gite);
+    const notAttempted = NOT_ATTEMPTED_GITES.includes(gite);
+    const reason = outcome === undefined
+      ? (notAttempted ? NOT_ATTEMPTED_REASON : '')
+      : outcome.reasons.join(' · ');
+    await ctx.store.giteScans.put({
+      gite,
+      pagesRead: outcome?.pagesRead ?? 0,
+      pagesUnread: outcome?.pagesUnread ?? 0,
+      pagesInaccessible: outcome?.pagesInaccessible ?? 0,
+      reason,
+      passAt,
+    });
+  }
+}
+
 /** Lance un balayage borné (§14). */
 export async function runSweep(ctx: ServiceContext, params: SweepParams): Promise<SweepResult> {
   const startedAt = ctx.clock.now();
@@ -204,6 +232,7 @@ export async function runSweep(ctx: ServiceContext, params: SweepParams): Promis
   const durationMs = Date.now() - t0;
   await updateBudget(ctx, acc, pageIds.length, durationMs);
   const runAt = ctx.clock.now();
+  await persistGiteCoverage(ctx, acc, runAt);
   const sweepCursor = toSweepCursor(params.scope, params.mode, cursor, runAt);
   await ctx.store.cursors.put(sweepCursor);
   const blindSpots = [...new Set(acc.blindSpots)];

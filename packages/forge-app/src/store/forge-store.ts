@@ -30,13 +30,14 @@ import type {
 } from '@placard-wiki/domain';
 import type { SpaceSettings } from '@placard-wiki/domain';
 
-import type { ForgeStore, ListFoyersQuery } from './ports';
+import type { ForgeStore, GiteScanRecord, GiteScanRow, ListFoyersQuery } from './ports';
 import {
   attachmentScanFromRow, attachmentScanToRow, budgetFromRow, budgetToRow,
   certificateFromRow, certificateToRow, cursorFromRow, cursorToRow,
-  exposureFromRow, exposureToRow, foyerFromRow, foyerToRow, locationFromRow,
-  locationToRow, ownerFromRow, ownerToRow, pageScanFromRow, pageScanToRow,
-  purgeRequestFromRow, purgeRequestToRow, ritualStepFromRow, ritualStepToRow,
+  exposureFromRow, exposureToRow, foyerFromRow, foyerToRow, giteScanFromRow,
+  giteScanToRow, locationFromRow, locationToRow, ownerFromRow, ownerToRow,
+  pageScanFromRow, pageScanToRow, purgeRequestFromRow, purgeRequestToRow,
+  ritualStepFromRow, ritualStepToRow,
 } from './serialize';
 import { defaultSpaceSettings, rehydrate } from './memory-store';
 
@@ -55,6 +56,26 @@ const APP_SECRET_DDL = `CREATE TABLE IF NOT EXISTS app_secret (
   created_at TEXT
 )`;
 
+/**
+ * DDL de la table `gite_scan` : l'état de lecture d'un gîte (§6) — lu, non
+ * lu, inaccessible, avec la raison. Elle ne porte que des COMPTEURS et des
+ * RAISONS (jamais de valeur, jamais de texte de page).
+ *
+ * Elle est déclarée ici, et non dans le DDL du domaine, pour deux raisons :
+ * le schéma du §20 (onze tables) est celui du cahier et n'y touche pas ; et
+ * l'état de couverture est une donnée de MESURE de l'app, pas une donnée
+ * métier du domaine. Même principe que `app_secret` : une table technique,
+ * dans le seul fichier qui parle à `@forge/sql`.
+ */
+const GITE_SCAN_DDL = `CREATE TABLE IF NOT EXISTS gite_scan (
+  gite TEXT,
+  pages_read INTEGER,
+  pages_unread INTEGER,
+  pages_inaccessible INTEGER,
+  reason TEXT,
+  pass_at TEXT
+)`;
+
 /** Promesse de migration du conteneur : créée une fois, réessayée si elle échoue. */
 let schemaReady: Promise<void> | null = null;
 
@@ -65,6 +86,7 @@ export async function initSchema(): Promise<void> {
     runner.enqueue(`v001_${name}`, TABLE_DDL[name]);
   }
   runner.enqueue('v001_app_secret', APP_SECRET_DDL);
+  runner.enqueue('v001_gite_scan', GITE_SCAN_DDL);
   await runner.run();
 }
 
@@ -357,6 +379,23 @@ function forgeBudget(): ForgeStore['budget'] {
   };
 }
 
+function forgeGiteScans(): ForgeStore['giteScans'] {
+  return {
+    async put(record: GiteScanRecord) {
+      const row = giteScanToRow(record);
+      await mutate('DELETE FROM gite_scan WHERE gite = ?', [row.gite]);
+      await mutate(
+        'INSERT INTO gite_scan (gite, pages_read, pages_unread, pages_inaccessible, reason, pass_at) VALUES (?,?,?,?,?,?)',
+        [row.gite, row.pages_read, row.pages_unread, row.pages_inaccessible, row.reason, row.pass_at],
+      );
+    },
+    async list() {
+      const rows = await select<GiteScanRow>('SELECT * FROM gite_scan', []);
+      return rows.map(giteScanFromRow);
+    },
+  };
+}
+
 const settingsMap = new Map<string, SpaceSettings>();
 
 function forgeSettings(): ForgeStore['settings'] {
@@ -385,6 +424,7 @@ export function createForgeStore(): ForgeStore {
     certificates: forgeCertificates(),
     cursors: forgeCursors(),
     budget: forgeBudget(),
+    giteScans: forgeGiteScans(),
     settings: forgeSettings(),
     async saveFoyer(foyer: Foyer) {
       await findings.upsert(foyer);

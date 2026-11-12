@@ -25,7 +25,7 @@ import type {
 import { FAMILY_LABELS } from '@placard-wiki/domain';
 import type { SpaceSettings } from '@placard-wiki/domain';
 
-import type { ForgeStore, ListFoyersQuery } from './ports';
+import type { ForgeStore, GiteScanRecord, ListFoyersQuery } from './ports';
 
 /** Toutes les familles du domaine (§7) — pour les réglages par défaut. */
 const ALL_FAMILIES = Object.keys(FAMILY_LABELS) as WikiFamily[];
@@ -64,6 +64,7 @@ export interface MemoryState {
   certificates: Map<string, Certificate>;
   cursors: Map<string, SweepCursor>;
   budgets: Map<string, ScanBudget>;
+  giteScans: Map<string, GiteScanRecord>;
   settings: Map<string, SpaceSettings>;
 }
 
@@ -72,7 +73,8 @@ function emptyState(): MemoryState {
     findings: new Map(), byFingerprint: new Map(), locations: new Map(),
     exposures: new Map(), pageScans: new Map(), attachmentScans: new Map(),
     ritualSteps: new Map(), purgeRequests: new Map(), owners: new Map(),
-    certificates: new Map(), cursors: new Map(), budgets: new Map(), settings: new Map(),
+    certificates: new Map(), cursors: new Map(), budgets: new Map(),
+    giteScans: new Map(), settings: new Map(),
   };
 }
 
@@ -270,6 +272,17 @@ function memoryBudget(s: MemoryState): ForgeStore['budget'] {
   };
 }
 
+function memoryGiteScans(s: MemoryState): ForgeStore['giteScans'] {
+  return {
+    async put(record: GiteScanRecord) {
+      s.giteScans.set(record.gite, record);
+    },
+    async list() {
+      return [...s.giteScans.values()];
+    },
+  };
+}
+
 function memorySettings(s: MemoryState): ForgeStore['settings'] {
   return {
     async get(spaceKey: string) {
@@ -297,6 +310,7 @@ export function createMemoryStore(): ForgeStore {
     certificates: memoryCertificates(s),
     cursors: memoryCursors(s),
     budget: memoryBudget(s),
+    giteScans: memoryGiteScans(s),
     settings: memorySettings(s),
     async saveFoyer(foyer: Foyer) {
       const enriched = rehydrate(foyer, spaceOf);

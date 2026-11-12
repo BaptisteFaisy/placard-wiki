@@ -19,15 +19,35 @@ import type {
   AttachmentScanRecord,
   ContainerType,
   ContentField,
+  Gite,
   PageScanRecord,
   WikiFamily,
 } from '@placard-wiki/domain';
 import type { WikiDetection, WikiPageMeta } from '@placard-wiki/propagation';
 
 import type { ServiceContext } from './ports';
+import { describeGiteFailure } from './coverage';
 
 /** Version déclarée du moteur de détection (colonne `detectors_version`). */
 export const DETECTORS_VERSION = 'wiki-detectors-1';
+
+/**
+ * Ce qu'un gîte a donné sur une page : lu, accessible mais pas entièrement lu,
+ * ou inaccessible. C'est la MATIÈRE PREMIÈRE de la couverture réelle — elle
+ * est comptée page par page, jamais estimée (§14, §19).
+ */
+export interface GiteOutcome {
+  /** Le gîte (§6). */
+  gite: Gite;
+  /** Pages où le gîte a été lu. */
+  pagesRead: number;
+  /** Pages accessibles dont une partie n'a pas pu être lue (binaire, taille…). */
+  pagesUnread: number;
+  /** Pages où l'accès a été refusé — droits manquants, pas « pas de données ». */
+  pagesInaccessible: number;
+  /** Raisons distinctes (jamais de valeur, jamais de texte de page). */
+  reasons: string[];
+}
 
 /** Accumulateur d'une passe de balayage. */
 export interface ScanAccumulator {
@@ -44,6 +64,8 @@ export interface ScanAccumulator {
   pageSpace: Map<string, string>;
   attachmentsRead: number;
   attachmentsSkipped: number;
+  /** Ce que chaque gîte a donné, page par page — la couverture mesurée. */
+  giteOutcomes: Map<Gite, GiteOutcome>;
 }
 
 export function emptyAccumulator(): ScanAccumulator {
@@ -51,7 +73,23 @@ export function emptyAccumulator(): ScanAccumulator {
     detections: [], pages: [], pageScans: [], attachmentScans: [],
     blindSpots: [], testFingerprints: new Set(), knownFakeFingerprints: new Set(),
     pageSpace: new Map(), attachmentsRead: 0, attachmentsSkipped: 0,
+    giteOutcomes: new Map(),
   };
+}
+
+/** Agrège le résultat d'un gîte (une page) dans l'accumulateur de la passe. */
+export function accumulateGiteOutcome(acc: ScanAccumulator, outcome: GiteOutcome): void {
+  const current = acc.giteOutcomes.get(outcome.gite);
+  if (current === undefined) {
+    acc.giteOutcomes.set(outcome.gite, { ...outcome, reasons: [...outcome.reasons] });
+    return;
+  }
+  current.pagesRead += outcome.pagesRead;
+  current.pagesUnread += outcome.pagesUnread;
+  current.pagesInaccessible += outcome.pagesInaccessible;
+  for (const reason of outcome.reasons) {
+    if (!current.reasons.includes(reason)) current.reasons.push(reason);
+  }
 }
 
 /** ScannedItem (wiki-source) → ScanItem (detectors). */
@@ -152,7 +190,7 @@ function pageMetaOf(pageId: string, title: string, createdAt: string): WikiPageM
 
 /** Un gîte de la page et son lecteur (§6) — lu un par un, jamais tout ou rien. */
 interface GiteReader {
-  gite: string;
+  gite: Gite;
   read: (client: ConfluenceClient, pageId: string) => Promise<ScannedItem[]>;
 }
 
@@ -165,30 +203,74 @@ const PAGE_GITES: readonly GiteReader[] = [
   { gite: 'historique-de-versions', read: (client, pageId) => readVersions(client, pageId) },
 ];
 
+/** Résultat d'un gîte sur UNE page : lu, partiellement lu, ou inaccessible. */
+interface GiteResult {
+  gite: Gite;
+  items: ScannedItem[];
+  outcome: GiteOutcome;
+}
+
+/** Les éléments non lus d'un gîte (pièce jointe binaire, trop grande…). */
+function unreadItems(items: readonly ScannedItem[]): ScannedItem[] {
+  return items.filter((item) => item.skippedReason !== undefined);
+}
+
+/** Raison d'un élément non lu — distincte d'un accès refusé (§25.18). */
+function unreadReason(items: readonly ScannedItem[]): string {
+  const reasons = [...new Set(unreadItems(items).map((item) => item.skippedReason ?? 'raison absente'))];
+  return reasons.join(' · ');
+}
+
 /**
  * Lit les gîtes d'une page **un par un**. Un gîte hors de portée (droits
  * manquants, 401) est déclaré en angle mort ; il ne fait pas perdre la page
  * entière — mesuré le 12 novembre 2026 : l'identité de l'app n'a accès qu'à
  * la recherche, pas aux points d'accès directs de contenu.
  *
- * Renvoie aussi les échecs : c'est au tour de la page de décider si l'échec
- * est un DROIT manquant (page entière illisible) ou un angle mort partiel.
+ * Chaque gîte rend son verdict : lu, partiellement lu, ou inaccessible. Ce
+ * verdict est ce qui permet de mesurer la couverture réelle (§14).
  */
 async function readPageGites(
   ctx: ServiceContext,
   pageId: string,
-): Promise<{ items: ScannedItem[]; failures: string[] }> {
+): Promise<{ items: ScannedItem[]; failures: string[]; results: GiteResult[] }> {
   const items: ScannedItem[] = [];
   const failures: string[] = [];
+  const results: GiteResult[] = [];
   for (const gite of PAGE_GITES) {
     try {
-      items.push(...await gite.read(ctx.confluence, pageId));
+      const lus = await gite.read(ctx.confluence, pageId);
+      items.push(...lus);
+      const reason = unreadReason(lus);
+      results.push({
+        gite: gite.gite,
+        items: lus,
+        outcome: {
+          gite: gite.gite,
+          pagesRead: reason === '' ? 1 : 0,
+          pagesUnread: reason === '' ? 0 : 1,
+          pagesInaccessible: 0,
+          reasons: reason === '' ? [] : [reason],
+        },
+      });
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
+      const raw = error instanceof Error ? error.message : String(error);
+      const reason = describeGiteFailure(raw);
       failures.push(`« ${gite.gite} » : ${reason}`);
+      results.push({
+        gite: gite.gite,
+        items: [],
+        outcome: {
+          gite: gite.gite,
+          pagesRead: 0,
+          pagesUnread: 0,
+          pagesInaccessible: 1,
+          reasons: [reason],
+        },
+      });
     }
   }
-  return { items, failures };
+  return { items, failures, results };
 }
 
 /**
@@ -203,7 +285,8 @@ export async function scanPageInto(
   disabled: readonly WikiFamily[],
 ): Promise<void> {
   const detectedAt = ctx.clock.now();
-  const { items, failures } = await readPageGites(ctx, pageId);
+  const { items, failures, results } = await readPageGites(ctx, pageId);
+  for (const result of results) accumulateGiteOutcome(acc, result.outcome);
   if (items.length === 0) {
     // Page entièrement illisible : c'est un **droit manquant** tant que
     // l'inverse n'est pas prouvé (§25.18). « Pas de données » serait un

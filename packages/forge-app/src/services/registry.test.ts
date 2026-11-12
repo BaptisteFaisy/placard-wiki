@@ -26,7 +26,7 @@ import type { CoverageReport } from '@placard-wiki/domain';
 import type { ServiceContext } from './ports';
 import {
   DECLARED_BLIND_SPOTS, GRAPH_RIGHTS_TO_VALIDATE, coverageReport, declaresMissingRight,
-} from './registry';
+} from './coverage';
 import { GRAPH_MISSING_RIGHT_CAVEAT, resolveOwner } from './owner';
 import { runSweep } from './sweep';
 import {
@@ -122,14 +122,20 @@ describe('coverageReport — pièces jointes non lues et pourquoi (§25.17, PW-1
     expect(gite(report, 'corps-de-page')?.skipped).toBe(0);
   });
 
-  it('store vide : couverture nulle MAIS déclarée, jamais un silence', async () => {
+  it('store vide : les sept gîtes sont là, à zéro — et le doute est dit', async () => {
     const report = await coverageReport(makeTestContext());
 
-    expect(report.perGite.map((g) => g.gite)).toEqual(['corps-de-page', 'pieces-jointes']);
+    // Les sept gîtes du §6 sont toujours listés : un gîte absent serait un
+    // silence, pas une couverture.
+    expect(report.perGite.map((g) => g.gite)).toEqual([
+      'corps-de-page', 'commentaires', 'pieces-jointes', 'historique-de-versions',
+      'modeles-de-page', 'titres-et-etiquettes', 'description-espace',
+    ]);
     for (const entry of report.perGite) {
       expect(entry.scanned).toBe(0);
       expect(entry.skipped).toBe(0);
-      expect(entry.reason).toBeUndefined();
+      // Jamais de zéro muet : le gîte porte une raison (indéterminé ou déclaré).
+      expect(entry.reason).toBeTruthy();
     }
   });
 

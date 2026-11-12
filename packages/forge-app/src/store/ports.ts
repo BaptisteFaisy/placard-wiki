@@ -26,6 +26,37 @@ import type {
   WikiFamily,
 } from '@placard-wiki/domain';
 import type { SpaceSettings } from '@placard-wiki/domain';
+import type { Gite } from '@placard-wiki/domain';
+
+/**
+ * L'état de lecture d'un gîte (§6) pour la dernière passe : lu, non lu,
+ * inaccessible — avec la raison. C'est la mesure HONNÊTE de la couverture :
+ * elle est écrite par le balayage, relue telle quelle, jamais reconstituée.
+ */
+export interface GiteScanRecord {
+  /** Le gîte (§6) : corps de page, commentaires, pièces jointes… */
+  gite: Gite;
+  /** Pages où le gîte a été lu. */
+  pagesRead: number;
+  /** Pages accessibles, mais dont le contenu n'a pas pu être lu. */
+  pagesUnread: number;
+  /** Pages où l'accès a été refusé (droits manquants — jamais « pas de données »). */
+  pagesInaccessible: number;
+  /** Raison de l'échec (vide quand le gîte a été lu partout). */
+  reason: string;
+  /** Horodatage de la passe qui a produit ces compteurs. */
+  passAt: string;
+}
+
+/** Ligne SQL de `gite_scan` (une ligne par gîte). */
+export interface GiteScanRow {
+  gite: string;
+  pages_read: number;
+  pages_unread: number;
+  pages_inaccessible: number;
+  reason: string;
+  pass_at: string;
+}
 
 /** Filtres de lecture des foyers (vue registre, §16 PW-15). */
 export interface ListFoyersQuery {
@@ -118,6 +149,14 @@ export interface BudgetRepo {
   put(budget: ScanBudget): Promise<void>;
 }
 
+/** Dépôt `gite_scan` : la couverture réelle, gîte par gîte (§6, §14). */
+export interface GiteScanRepo {
+  /** Enregistre (remplace) l'état d'un gîte pour la passe courante. */
+  put(record: GiteScanRecord): Promise<void>;
+  /** L'état de tous les gîtes connus. */
+  list(): Promise<GiteScanRecord[]>;
+}
+
 /** Dépôt de réglages par espace (PW-24) — non persisté dans SQL (limite honnête). */
 export interface SettingsRepo {
   get(spaceKey: string): Promise<SpaceSettings>;
@@ -137,6 +176,7 @@ export interface ForgeStore {
   certificates: CertificateRepo;
   cursors: SweepCursorRepo;
   budget: BudgetRepo;
+  giteScans: GiteScanRepo;
   settings: SettingsRepo;
   /**
    * Écrit un foyer complet : ligne `finding` + lignes `location`. Calcule aussi

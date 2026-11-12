@@ -25,8 +25,9 @@ import { getServiceContext, probeConfluence } from './runtime/context';
 import { buildingModel, coverageReport, generateCertificate, maskText, registryRows, runSweep } from './services/index';
 import type { ServiceContext } from './services/ports';
 import type {
-  BuildingModel, Certificate, CoverageReport, Foyer, RegistryRow, ScanBudget,
+  BuildingModel, Certificate, Foyer, RegistryRow, ScanBudget,
 } from '@placard-wiki/domain';
+import type { CoverageReportReelle } from './services/coverage';
 
 interface WebtriggerRequest {
   method: string;
@@ -183,7 +184,7 @@ export interface PublicDemoPayload {
   /** Les foyers, indexés par identifiant — comme `FOYERS` du site public. */
   foyers: Record<string, Foyer>;
   budget: ScanBudget;
-  coverage: CoverageReport;
+  coverage: CoverageReportReelle;
   certificate: Certificate;
 }
 
@@ -230,18 +231,15 @@ async function liveSpaces(ctx: ServiceContext, keys: readonly string[]): Promise
   return spaces;
 }
 
-/** La couverture réelle : compteurs du jour + angles morts déclarés par le service. */
-function liveCoverage(base: CoverageReport, budget: ScanBudget, lastPassAt?: string): CoverageReport {
-  const coverage: CoverageReport = {
-    perGite: [
-      { gite: 'corps-de-page', scanned: budget.pagesScanned, skipped: 0 },
-      {
-        gite: 'pieces-jointes',
-        scanned: budget.attachmentsRead,
-        skipped: budget.attachmentsSkipped,
-        reason: 'Binaire sans texte ou taille dépassée — détail dans le budget.',
-      },
-    ],
+/**
+ * La couverture exposée publiquement : le rapport mesuré par le service, avec
+ * le pourcentage et SA MÉTHODE. Aucun chiffre n'est reconstruit ici : le
+ * rapport vient du store, tel quel (§14, §19).
+ */
+function liveCoverage(base: CoverageReportReelle, lastPassAt?: string): CoverageReportReelle {
+  const coverage: CoverageReportReelle = {
+    ...base,
+    perGite: [...base.perGite],
     blindSpots: [...base.blindSpots],
     missingRights: [...base.missingRights],
   };
@@ -259,7 +257,7 @@ async function buildPublicDemo(ctx: ServiceContext): Promise<PublicDemoPayload> 
   const day = ctx.clock.now().slice(0, 10);
   const budget = (await ctx.store.budget.get(day)) ?? emptyBudget(day);
   const cursor = await ctx.store.cursors.get('site', 'incremental');
-  const coverage = liveCoverage(await coverageReport(ctx), budget, cursor?.runAt);
+  const coverage = liveCoverage(await coverageReport(ctx), cursor?.runAt);
   // Le certificat est **regénéré** à chaque appel : un certificat périmé
   // compterait des foyers qui n'existent plus (§9 — le certificat.date).
   const certificate = await generateCertificate(ctx, 'site');
