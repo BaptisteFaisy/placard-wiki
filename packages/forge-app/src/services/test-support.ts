@@ -21,6 +21,7 @@ import type {
   AccessPort, ActorContext, JiraPort, OwnerSourcePort, RealtimePort,
   ServiceContext, TeamworkGraphPort,
 } from './ports';
+import { GRAPH_MISSING_RIGHT_CAVEAT } from './owner';
 
 /**
  * Valeur à forme de clé cloud, fabriquée à l'exécution (PLA-N-09 : aucune
@@ -101,6 +102,20 @@ function testGraph(): TeamworkGraphPort {
   return { async teamOwner() { return { confidence: 'none' as const, caveat: 'graphe de test' }; } };
 }
 
+/** Source de propriété vide : aucune cascade locale ne résout (§12). */
+export function emptyOwnerSource(): OwnerSourcePort {
+  return {
+    async declaredOwner() { return undefined; },
+    async lastEditors() { return []; },
+    async spaceLead() { return undefined; },
+  };
+}
+
+/** Graphe sans droit : la résolution échoue en déclarant « pas de droit » (§19). */
+export function deniedGraph(): TeamworkGraphPort {
+  return { async teamOwner() { return { confidence: 'none' as const, caveat: GRAPH_MISSING_RIGHT_CAVEAT }; } };
+}
+
 export interface FakeRealtime extends RealtimePort {
   published: Array<{ channel: string; payload: Record<string, unknown> }>;
 }
@@ -140,6 +155,10 @@ export interface TestContextOptions {
   store?: ForgeStore;
   confluence?: ConfluenceClient;
   actor?: ActorContext;
+  /** Source de propriété injectée (défaut : propriétaire déclaré `alice`). */
+  ownerSource?: OwnerSourcePort;
+  /** Graphe injecté (défaut : aucun propriétaire, caveat de test). */
+  graph?: TeamworkGraphPort;
 }
 
 /** Contexte de service entièrement factice, pour les tests. */
@@ -154,6 +173,8 @@ export function makeTestContext(options: TestContextOptions = {}): ServiceContex
   const storage = testStorage();
   const realtime = testRealtime();
   const jira = testJira();
+  const ownerSource = options.ownerSource ?? testOwnerSource();
+  const graph = options.graph ?? testGraph();
   const actor = options.actor ?? { kind: 'human' as const, accountId: 'ari:identity::alice' };
   return {
     store,
@@ -163,8 +184,8 @@ export function makeTestContext(options: TestContextOptions = {}): ServiceContex
     ids,
     storage,
     oracle: testOracle(hmacKey),
-    ownerSource: testOwnerSource(),
-    graph: testGraph(),
+    ownerSource,
+    graph,
     realtime,
     jira,
     access: testAccess(),
