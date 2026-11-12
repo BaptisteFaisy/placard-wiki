@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { giteOf } from '@placard-wiki/domain';
 import type { Foyer, FoyerLocation } from '@placard-wiki/domain';
 
-import { createMemoryStore } from './memory-store.js';
+import { createMemoryStore } from './memory-store';
 
 function location(id: string, pageId: string): FoyerLocation {
   return {

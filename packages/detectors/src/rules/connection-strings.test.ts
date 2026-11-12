@@ -6,7 +6,7 @@ import {
   RULE_CONNECTION_JDBC_PARAM,
   RULE_CONNECTION_URI,
   findConnectionStrings,
-} from './connection-strings.js';
+} from './connection-strings';
 
 /** Valeurs fabriquées à l'exécution (PLA-N-09 : aucun littéral au format réel). */
 const rand = prng('tests-connection-strings');

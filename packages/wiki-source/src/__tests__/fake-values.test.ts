@@ -9,9 +9,9 @@ import { describe, expect, it } from 'vitest';
 
 import { fakeCloudKey, fakePassword, fakePrivateKeyBlock, prng } from '@placard/core';
 
-import type { ConfluencePage } from '../api.js';
-import { createFixtureClient } from '../fixture-client.js';
-import { readPageBody } from '../readers/index.js';
+import type { ConfluencePage } from '../api';
+import { createFixtureClient } from '../fixture-client';
+import { readPageBody } from '../readers/index';
 
 function pageWith(body: string): ConfluencePage {
   return {

@@ -15,7 +15,7 @@
 
 import { computeFingerprint } from '@placard/core';
 
-import type { DetectionCandidate } from './types.js';
+import type { DetectionCandidate } from './types';
 
 /** La question posée à l'oracle — uniquement du contenu masqué. */
 export interface LlmOracleQuestion {

@@ -7,8 +7,8 @@ import { describe, expect, it } from 'vitest';
 
 import type { Foyer } from '@placard-wiki/domain';
 
-import { fausseCleAws, empreinteDe, makeDetection } from './fixtures.js';
-import { groupIntoFoyers } from './group.js';
+import { fausseCleAws, empreinteDe, makeDetection } from './fixtures';
+import { groupIntoFoyers } from './group';
 import {
   ALLOWED_TRANSITIONS,
   TransitionIllégale,
@@ -19,7 +19,7 @@ import {
   revalidateRibbons,
   sealFoyer,
   transitionFoyer,
-} from './state-machine.js';
+} from './state-machine';
 
 function foyerOuvert(): Foyer {
   const cle = fausseCleAws('recette-etats');

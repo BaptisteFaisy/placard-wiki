@@ -18,7 +18,7 @@ import {
   type FoyerLocation,
 } from '@placard-wiki/domain';
 
-import type { WikiDetection, WikiPageMeta } from './detection.js';
+import type { WikiDetection, WikiPageMeta } from './detection';
 
 /** Hachage FNV-1a 32 bits — identifiants déterministes, sans dépendance. */
 function fnv1a(input: string): string {

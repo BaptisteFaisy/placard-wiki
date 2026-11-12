@@ -23,9 +23,9 @@ import {
   type ScoreTermId,
   type SharingState,
 } from '@placard-wiki/domain';
-import { callBridge } from './bridge.js';
-import { useI18n, type Lang } from './i18n.js';
-import { EmptyNotice, Loading, StateLozenge } from './widgets.js';
+import { callBridge } from './bridge';
+import { useI18n, type Lang } from './i18n';
+import { EmptyNotice, Loading, StateLozenge } from './widgets';
 import { useEffect, useState } from 'react';
 
 /** Libellé bilingue d'un terme du score : catalogue §8 d'abord, repli sinon. */

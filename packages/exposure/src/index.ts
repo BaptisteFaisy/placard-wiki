@@ -22,12 +22,12 @@
  *   pas à Confluence et n'est jamais recopié.
  */
 
-export * from './score.js';
-export * from './readers.js';
-export * from './ai-surface.js';
-export * from './remediation.js';
-export * from './pre-activation.js';
-export * from './visible-to.js';
+export * from './score';
+export * from './readers';
+export * from './ai-surface';
+export * from './remediation';
+export * from './pre-activation';
+export * from './visible-to';
 
 export const PACKAGE_NAME = '@placard-wiki/exposure';
 export const PACKAGE_STATUS = 'implemented' as const;

@@ -12,12 +12,12 @@
 
 import { Button, Code, Heading, Inline, SectionMessage, Stack, Text } from '@forge/react';
 import { FAMILY_LABELS, type RegistryRow } from '@placard-wiki/domain';
-import { callBridge } from './bridge.js';
-import { useAccountId, usePageId } from './context.js';
-import { FoyerDetail, RedactFlow } from './foyer-detail.js';
-import { useI18n, type Lang } from './i18n.js';
-import { useRealtimeBanner } from './realtime.js';
-import { EmptyNotice, Loading, ScoreLozenge, StateLozenge } from './widgets.js';
+import { callBridge } from './bridge';
+import { useAccountId, usePageId } from './context';
+import { FoyerDetail, RedactFlow } from './foyer-detail';
+import { useI18n, type Lang } from './i18n';
+import { useRealtimeBanner } from './realtime';
+import { EmptyNotice, Loading, ScoreLozenge, StateLozenge } from './widgets';
 import { useEffect, useState } from 'react';
 
 /** Charge les foyers d'une page (registre filtré sur le pageId courant). */

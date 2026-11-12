@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { fakeSuspiciousString, fakeValue, prng } from '@placard/core';
 
-import { scanItem } from './scan.js';
-import type { DetectionCandidate, ScanItem, WikiScanDeps } from './types.js';
+import { scanItem } from './scan';
+import type { DetectionCandidate, ScanItem, WikiScanDeps } from './types';
 
 /** Toutes les valeurs de test sont fabriquées par @placard/core (PLA-N-09). */
 const rand = prng('tests-scan');

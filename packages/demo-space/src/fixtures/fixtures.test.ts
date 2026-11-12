@@ -13,7 +13,7 @@ import {
   fixturesDuGite,
   genererFixtures,
   giteCoherent,
-} from './index.js';
+} from './index';
 
 const FAMILLES = Object.keys(FAMILY_LABELS);
 const GITES_LISTE = GITES.map((g) => g.gite);

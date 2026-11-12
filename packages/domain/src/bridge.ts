@@ -16,8 +16,8 @@ import type {
   RitualStepState,
   ScanBudget,
   SweepCursor,
-} from './types.js';
-import type { FoyerState, WikiFamily } from './vocabulary.js';
+} from './types';
+import type { FoyerState, WikiFamily } from './vocabulary';
 
 /** Réglages par espace (§16 PW-24). */
 export interface SpaceSettings {

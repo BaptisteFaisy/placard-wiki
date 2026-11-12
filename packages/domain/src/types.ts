@@ -13,7 +13,7 @@ import type {
   OwnerMethod,
   SharingState,
   WikiFamily,
-} from './vocabulary.js';
+} from './vocabulary';
 
 /** Aperçu masqué : famille visible, valeur inutilisable (`AKIA…(20)`). */
 export type MaskedPreview = string;

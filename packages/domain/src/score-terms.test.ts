@@ -5,7 +5,7 @@ import {
   SCORE_TERMS,
   SCORE_TERM_BY_ID,
   computeDanger,
-} from './score-terms.js';
+} from './score-terms';
 
 /** Les valeurs exactes du cahier des charges §8. */
 const EXPECTED_POINTS: Record<string, number | null> = {

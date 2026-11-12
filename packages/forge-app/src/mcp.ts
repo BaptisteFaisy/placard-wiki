@@ -15,7 +15,7 @@ import { scanItem } from '@placard-wiki/detectors';
 import { visibleTo } from '@placard-wiki/exposure';
 import type { Foyer } from '@placard-wiki/domain';
 
-import { getServiceContext } from './runtime/context.js';
+import { getServiceContext } from './runtime/context';
 import {
   applyRedactionService,
   attestRotation,
@@ -26,8 +26,8 @@ import {
   redactionPreview,
   registryRows,
   runSweep,
-} from './services/index.js';
-import type { ServiceContext } from './services/ports.js';
+} from './services/index';
+import type { ServiceContext } from './services/ports';
 
 const ctxRef = (): ServiceContext => getServiceContext();
 

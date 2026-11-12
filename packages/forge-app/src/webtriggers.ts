@@ -13,8 +13,8 @@
  * au manifeste (`pw-purge-request`).
  */
 
-import { getServiceContext } from './runtime/context.js';
-import type { ServiceContext } from './services/ports.js';
+import { getServiceContext } from './runtime/context';
+import type { ServiceContext } from './services/ports';
 
 interface WebtriggerRequest {
   method: string;

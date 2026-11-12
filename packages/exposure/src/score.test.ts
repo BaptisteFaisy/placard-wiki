@@ -18,7 +18,7 @@ import {
   MS_PER_DAY,
   type DangerScoreInput,
   type ScoredLocation,
-} from './score.js';
+} from './score';
 
 /** Horloge fixe : les tests sont déterministes (§22). */
 const NOW = '2026-11-11T12:00:00.000Z';

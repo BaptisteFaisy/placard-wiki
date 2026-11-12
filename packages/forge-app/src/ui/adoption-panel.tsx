@@ -11,10 +11,10 @@
 import { Box, Button, Heading, Inline, SectionMessage, Stack, Text, Textfield } from '@forge/react';
 import { useProductContext } from '@forge/react';
 import type { BridgeResults } from '@placard-wiki/domain';
-import { callBridge } from './bridge.js';
-import { FilterText } from './form-controls.js';
-import { useI18n } from './i18n.js';
-import { EmptyNotice, Loading } from './widgets.js';
+import { callBridge } from './bridge';
+import { FilterText } from './form-controls';
+import { useI18n } from './i18n';
+import { EmptyNotice, Loading } from './widgets';
 import { useEffect, useState } from 'react';
 
 type AdoptionPage = BridgeResults['adoption/list']['pages'][number];

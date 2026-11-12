@@ -20,14 +20,14 @@
  * injectables (`ports.ts`) que le résolveur Forge implémente.
  */
 
-export * from './ports.js';
-export * from './attestation.js';
-export * from './lock.js';
-export * from './redaction.js';
-export * from './purge.js';
-export * from './ribbon.js';
-export * from './certificate.js';
-export * from './jira.js';
+export * from './ports';
+export * from './attestation';
+export * from './lock';
+export * from './redaction';
+export * from './purge';
+export * from './ribbon';
+export * from './certificate';
+export * from './jira';
 
 export const PACKAGE_NAME = '@placard-wiki/ritual';
 export const PACKAGE_STATUS = 'implemented' as const;

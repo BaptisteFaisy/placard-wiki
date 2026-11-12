@@ -10,9 +10,9 @@
 
 import { Box, Heading, Inline, Stack, Text } from '@forge/react';
 import { GITES, type CoverageReport, type ScanBudget } from '@placard-wiki/domain';
-import { callBridge } from './bridge.js';
-import { useI18n, type Lang } from './i18n.js';
-import { EmptyNotice, Loading } from './widgets.js';
+import { callBridge } from './bridge';
+import { useI18n, type Lang } from './i18n';
+import { EmptyNotice, Loading } from './widgets';
 import { useEffect, useState } from 'react';
 
 /** Une statistique encadrée : libellé + valeur (lisable, contrastée). */

@@ -7,9 +7,9 @@ import {
   REFUSAL_UNKNOWN_PROVIDER,
   attestRotation,
   isKnownProvider,
-} from './attestation.js';
-import { fixedClock } from './ports.js';
-import { makeAttestation } from './test-support.js';
+} from './attestation';
+import { fixedClock } from './ports';
+import { makeAttestation } from './test-support';
 
 /** Recette §25.8 + §17 : l'attestation est un fait humain, horodaté, avec preuve. */
 describe('attestRotation', () => {

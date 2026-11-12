@@ -20,8 +20,8 @@ import {
   modelePageXml,
   pagePartageeXml,
   titreSecret,
-} from './fixtures/content.js';
-import { fixturesDuGite, type SecretFixture } from './fixtures/index.js';
+} from './fixtures/content';
+import { fixturesDuGite, type SecretFixture } from './fixtures/index';
 
 /** Clé et nom de l'espace de démonstration (la clé Confluence est alphanumérique). */
 export const SPACE_KEY = 'PLACARDDEMO';

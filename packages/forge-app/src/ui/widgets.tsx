@@ -9,7 +9,7 @@
 
 import { Button, Lozenge, SectionMessage, Spinner, Text } from '@forge/react';
 import type { FoyerState } from '@placard-wiki/domain';
-import { useI18n } from './i18n.js';
+import { useI18n } from './i18n';
 
 /** Apparence sémantique d'un lozenge (design system, contraste AA). */
 type LozengeAppearance =

@@ -13,7 +13,7 @@ import type {
   Foyer,
   RegistryRow,
 } from '@placard-wiki/domain';
-import type { ServiceContext } from './ports.js';
+import type { ServiceContext } from './ports';
 
 /** Ligne de registre d'un foyer (information identique au bâtiment, PW-15). */
 export async function toRegistryRow(ctx: ServiceContext, foyer: Foyer): Promise<RegistryRow> {

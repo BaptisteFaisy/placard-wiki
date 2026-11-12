@@ -7,10 +7,10 @@ import {
   adminPurgeBrief,
   foyerResteOuvert,
   purgeHistory,
-} from './purge.js';
-import type { PurgeTarget } from './purge.js';
-import { fixedClock, sequenceIds } from './ports.js';
-import { makeFoyer } from './test-support.js';
+} from './purge';
+import type { PurgeTarget } from './purge';
+import { fixedClock, sequenceIds } from './ports';
+import { makeFoyer } from './test-support';
 
 /** Recette §25.10 : purge impossible → demande admin groupée, foyer ouvert. */
 

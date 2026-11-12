@@ -20,10 +20,10 @@
 export const PACKAGE_NAME = '@placard-wiki/wiki-source';
 export const PACKAGE_STATUS = 'implemented' as const;
 
-export * from './types.js';
-export * from './api.js';
-export * from './http-client.js';
-export * from './readers/index.js';
-export * from './cql.js';
-export * from './cursor.js';
-export * from './fixture-client.js';
+export * from './types';
+export * from './api';
+export * from './http-client';
+export * from './readers/index';
+export * from './cql';
+export * from './cursor';
+export * from './fixture-client';

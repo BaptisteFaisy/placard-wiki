@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BRIDGE_METHODS } from './bridge.js';
-import type { BridgeRequests, BridgeResults } from './bridge.js';
+import { BRIDGE_METHODS } from './bridge';
+import type { BridgeRequests, BridgeResults } from './bridge';
 
 /**
  * Exhaustivité au niveau des types : chaque clé de BridgeRequests et de

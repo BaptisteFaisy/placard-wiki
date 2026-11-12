@@ -6,9 +6,9 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { buildSeedPlan, SPACE_KEY, type StepKind } from './plan.js';
-import { executePlan, renderPlan, type FetchLike, type SeedOptions } from './executor.js';
-import { isDryRun, main, missingEnv, optionsFromEnv } from './seed.js';
+import { buildSeedPlan, SPACE_KEY, type StepKind } from './plan';
+import { executePlan, renderPlan, type FetchLike, type SeedOptions } from './executor';
+import { isDryRun, main, missingEnv, optionsFromEnv } from './seed';
 
 const OPTS: SeedOptions = {
   baseUrl: 'https://demo.atlassian.net',

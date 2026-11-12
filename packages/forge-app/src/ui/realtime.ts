@@ -24,7 +24,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { realtime } from '@forge/bridge';
 import type { WikiFamily } from '@placard-wiki/domain';
-import { callBridge, type BridgeOutcome } from './bridge.js';
+import { callBridge, type BridgeOutcome } from './bridge';
 
 /**
  * Le payload de la bannière, poussé par le backend à l'auteur de la page.

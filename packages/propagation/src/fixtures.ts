@@ -6,7 +6,7 @@
 
 import { computeFingerprint, fakeValue } from '@placard/core';
 
-import { maskedPreviewOf, type WikiDetection, type WikiPageMeta } from './detection.js';
+import { maskedPreviewOf, type WikiDetection, type WikiPageMeta } from './detection';
 
 /** Sel de démonstration — une empreinte n'a de sens que pour son installation. */
 export const SEL_DEMO = 'sel-de-demonstration-placard-wiki';
