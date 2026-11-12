@@ -12,3 +12,4 @@ export * from './sweep';
 export * from './owner';
 export * from './ritual-service';
 export * from './registry';
+export * from './public-payload';
