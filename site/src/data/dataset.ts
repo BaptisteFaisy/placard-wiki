@@ -10,7 +10,6 @@
 import type {
   BuildingModel,
   Certificate,
-  CoverageReport,
   Foyer,
   OwnerResolution,
   PageExposure,
@@ -24,6 +23,7 @@ import type { WikiPageMeta } from '@placard-wiki/propagation';
 import { EXPOSURES, FOYERS, ORPHAN_PAGES, OWNERS, PURGE_REQUESTS, RITUALS, SPACES } from './demo.js';
 import { BUDGET, BUILDING, CERTIFICATE, COVERAGE_BLIND_SPOTS, REGISTRY_ROWS, TITLES } from './demo-site.js';
 import { COVERAGE, MISSING_RIGHTS_EN, SPACE_BLIND_SPOT_EN } from './coverage.js';
+import type { CoverageReportAffichee } from './coverage.js';
 import { INITIAL_SETTINGS } from './settings.js';
 import { PAGES_META, PROP_EXPOSURE, PROP_TITLES, PROPAGATION_FOYERS } from './pages-meta.js';
 import { DEMO_SITE_NAME } from '../lib/live-config.js';
@@ -63,7 +63,7 @@ export interface PlacardDataset {
   readonly registryRows: readonly RegistryRow[];
   readonly building: BuildingModel;
   readonly budget: ScanBudget;
-  readonly coverage: CoverageReport;
+  readonly coverage: CoverageReportAffichee;
   readonly coverageBlindSpots: readonly string[];
   readonly certificate: Certificate;
   readonly exposures: Readonly<Record<string, PageExposure>>;

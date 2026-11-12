@@ -4,7 +4,8 @@
 // Règle d'honnêteté du dépôt : une réponse invalide n'est JAMAIS interpretée
 // comme des données — on bascule sur le snapshot et on dit pourquoi.
 
-import type { BuildingModel, Certificate, CoverageReport, Foyer, RegistryRow, ScanBudget } from '@placard-wiki/domain';
+import type { BuildingModel, Certificate, Foyer, RegistryRow, ScanBudget } from '@placard-wiki/domain';
+import type { CoverageReportAffichee, GiteCoverageRow, GiteCoverageState } from '../data/coverage.js';
 import { LIVE_CACHE_TTL_MS, LIVE_RETRIES, LIVE_TIMEOUT_MS, liveApiUrl } from './live-config.js';
 
 /** État du flux : ce que l'indicateur d'honnêteté affiche. */
@@ -29,7 +30,7 @@ export interface LivePayload {
   readonly building: BuildingModel;
   readonly foyers: Record<string, Foyer>;
   readonly budget: ScanBudget;
-  readonly coverage: CoverageReport;
+  readonly coverage: CoverageReportAffichee;
   readonly certificate: Certificate;
 }
 
@@ -152,6 +153,79 @@ function normalizeRegistry(raw: unknown): RegistryRow[] | null {
   return Object.values(raw) as unknown as RegistryRow[];
 }
 
+/** Une ligne de couverture, lue avec prudence (le flux peut être incomplet). */
+function normalizeGiteRow(raw: unknown): GiteCoverageRow {
+  if (!isObject(raw)) return { gite: '', scanned: 0, skipped: 0, pagesRead: 0, pagesUnread: 0, pagesInaccessible: 0, state: 'not-attempted' };
+  const gite = typeof raw['gite'] === 'string' ? raw['gite'] : '';
+  const scanned = typeof raw['scanned'] === 'number' ? raw['scanned'] : 0;
+  const skipped = typeof raw['skipped'] === 'number' ? raw['skipped'] : 0;
+  const pagesRead = typeof raw['pagesRead'] === 'number' ? raw['pagesRead'] : scanned;
+  const pagesUnread = typeof raw['pagesUnread'] === 'number' ? raw['pagesUnread'] : skipped;
+  const pagesInaccessible = typeof raw['pagesInaccessible'] === 'number' ? raw['pagesInaccessible'] : 0;
+  const state: GiteCoverageState = raw['state'] === 'read' || raw['state'] === 'unread' || raw['state'] === 'inaccessible' || raw['state'] === 'not-attempted'
+    ? raw['state']
+    : stateOfCounts(pagesRead, pagesUnread, pagesInaccessible);
+  const reason = typeof raw['reason'] === 'string' ? raw['reason'] : undefined;
+  return { gite, scanned, skipped, ...(reason !== undefined ? { reason } : {}), pagesRead, pagesUnread, pagesInaccessible, state };
+}
+
+/** L'état déduit des compteurs, quand le flux ne transporte pas `state`. */
+function stateOfCounts(read: number, unread: number, inaccessible: number): GiteCoverageState {
+  if (inaccessible > 0) return 'inaccessible';
+  if (unread > 0) return 'unread';
+  if (read > 0) return 'read';
+  return 'not-attempted';
+}
+
+/**
+ * Normalise la couverture du flux live : les champs du pourcentage et de la
+ * méthode sont lus s'ils existent ; sinon la couverture est INDÉTERMINÉE
+ * (`coveragePercent` null — jamais 0 %), car un flux qui ne les porte pas n'a
+ * pas mesuré de couverture par gîte.
+ */
+function normalizeCoverage(raw: unknown): CoverageReportAffichee {
+  if (!isObject(raw)) return emptyCoverage();
+  const perGite = (Array.isArray(raw['perGite']) ? raw['perGite'] : []).map(normalizeGiteRow);
+  const coveragePercent = typeof raw['coveragePercent'] === 'number' ? raw['coveragePercent'] : null;
+  const gitesCovered = typeof raw['gitesCovered'] === 'number'
+    ? raw['gitesCovered']
+    : perGite.filter((row) => row.pagesRead > 0).length;
+  const gitesTotal = typeof raw['gitesTotal'] === 'number' ? raw['gitesTotal'] : perGite.length;
+  const pagesRead = typeof raw['pagesRead'] === 'number'
+    ? raw['pagesRead']
+    : perGite.reduce((total, row) => total + row.pagesRead, 0);
+  const pagesTargeted = typeof raw['pagesTargeted'] === 'number'
+    ? raw['pagesTargeted']
+    : Math.max(0, ...perGite.map((row) => row.pagesRead + row.pagesUnread + row.pagesInaccessible));
+  const method = typeof raw['method'] === 'string' ? raw['method']
+    : '(flux live sans méthode de couverture — la couverture par gîte n’est pas encore mesurée)';
+  return {
+    perGite,
+    blindSpots: stringList(raw['blindSpots']),
+    missingRights: stringList(raw['missingRights']),
+    coveragePercent,
+    gitesCovered,
+    gitesTotal,
+    method,
+    pagesRead,
+    pagesTargeted,
+    ...(typeof raw['lastPassAt'] === 'string' ? { lastPassAt: raw['lastPassAt'] } : {}),
+  };
+}
+
+/** Couverture vide : aucun champ porté — indéterminée, déclarée. */
+function emptyCoverage(): CoverageReportAffichee {
+  return {
+    perGite: [],
+    blindSpots: [],
+    missingRights: [],
+    coveragePercent: null,
+    gitesCovered: 0,
+    gitesTotal: 0,
+    method: '',
+  };
+}
+
 /**
  * Validation MINIMALE de la forme : les clés attendues par le contrat, avec le
  * bon type de premier niveau. Une réponse qui ne respecte pas le contrat est
@@ -178,7 +252,7 @@ export function parseLivePayload(raw: unknown): LivePayload | null {
     building: raw['building'] as unknown as BuildingModel,
     foyers,
     budget: raw['budget'] as unknown as ScanBudget,
-    coverage: raw['coverage'] as unknown as CoverageReport,
+    coverage: normalizeCoverage(raw['coverage']),
     certificate: raw['certificate'] as unknown as Certificate,
   };
 }

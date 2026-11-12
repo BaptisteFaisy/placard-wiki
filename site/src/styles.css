@@ -527,3 +527,35 @@ ol.ritual > li[data-state='impossible'] {
 .does-not h3 {
   margin-bottom: 0.25rem;
 }
+
+.coverage-big {
+  margin: 0.5rem 0 0.25rem;
+}
+
+.coverage-percent {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.coverage-sub {
+  font-size: 0.9rem;
+  color: var(--muted, #666);
+}
+
+.coverage-indeterminate strong {
+  color: var(--warn, #a06a00);
+}
+
+.coverage-method .method-text {
+  border-left: 4px solid var(--accent, #b23);
+  padding: 0.5rem 1rem;
+  margin: 0.5rem 0;
+  background: #fafaf8;
+  font-style: italic;
+}
+
+.gite-read { color: #187a2f; }
+.gite-unread { color: #a06a00; }
+.gite-inaccessible { color: #b02020; font-weight: 600; }
+.gite-not-attempted { color: #777; }
+.gite-reason { color: #555; }
