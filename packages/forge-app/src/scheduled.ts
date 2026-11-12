@@ -8,8 +8,8 @@
 
 import { Queue } from '@forge/events';
 
-import { getServiceContext } from './runtime/context.js';
-import { runSweep } from './services/index.js';
+import { getServiceContext } from './runtime/context';
+import { runSweep } from './services/index';
 
 /** File de balayage long (§19). */
 const SWEEP_QUEUE = 'pw-sweep-queue';

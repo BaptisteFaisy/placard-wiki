@@ -10,11 +10,11 @@
 
 import { Button, Heading, Inline, SectionMessage, Stack, Text } from '@forge/react';
 import { FAMILY_LABELS, type SpaceSettings as SpaceSettingsData, type WikiFamily } from '@placard-wiki/domain';
-import { callBridge } from './bridge.js';
-import { useAccountId, useSpaceKey } from './context.js';
-import { FilterRange, FilterSelect, FilterText, FilterToggle, type SelectOption } from './form-controls.js';
-import { useI18n, type Lang } from './i18n.js';
-import { EmptyNotice, Loading } from './widgets.js';
+import { callBridge } from './bridge';
+import { useAccountId, useSpaceKey } from './context';
+import { FilterRange, FilterSelect, FilterText, FilterToggle, type SelectOption } from './form-controls';
+import { useI18n, type Lang } from './i18n';
+import { EmptyNotice, Loading } from './widgets';
 import { useCallback, useEffect, useState } from 'react';
 
 /** Une exclusion en cours de saisie : motif + raison (raison obligatoire). */

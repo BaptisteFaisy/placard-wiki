@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { fakeSuspiciousString, prng } from '@placard/core';
 
-import type { DetectionCandidate } from './types.js';
-import { buildQuestion, createCachedOracle, maskSpans } from './llm-oracle.js';
-import type { LlmOracle, LlmOracleVerdict } from './llm-oracle.js';
+import type { DetectionCandidate } from './types';
+import { buildQuestion, createCachedOracle, maskSpans } from './llm-oracle';
+import type { LlmOracle, LlmOracleVerdict } from './llm-oracle';
 
 const rand = prng('tests-llm-oracle');
 const SECRET = fakeSuspiciousString(rand);

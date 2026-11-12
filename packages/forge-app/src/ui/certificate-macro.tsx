@@ -10,10 +10,10 @@
 
 import { Box, Button, Code, Heading, Inline, Stack, Text } from '@forge/react';
 import type { Certificate } from '@placard-wiki/domain';
-import { callBridge } from './bridge.js';
-import { useSpaceKey } from './context.js';
-import { useI18n } from './i18n.js';
-import { EmptyNotice, Loading } from './widgets.js';
+import { callBridge } from './bridge';
+import { useSpaceKey } from './context';
+import { useI18n } from './i18n';
+import { EmptyNotice, Loading } from './widgets';
 import { useCallback, useEffect, useState } from 'react';
 
 /** Un chiffre du certificat, encadré (lisibilité, contraste AA). */

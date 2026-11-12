@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { fixedClock } from './ports.js';
+import { fixedClock } from './ports';
 import {
   REFUSAL_NO_ACTOR,
   REFUSAL_NO_REASON,
@@ -8,8 +8,8 @@ import {
   attachRibbon,
   dismissedStillHolds,
   ribbonNeedsRevalidation,
-} from './ribbon.js';
-import { makeFoyer } from './test-support.js';
+} from './ribbon';
+import { makeFoyer } from './test-support';
 
 /** Recette §25.12 : raison écrite + personne + date de révision, revalidation au changement de page. */
 

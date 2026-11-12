@@ -7,7 +7,7 @@
  */
 
 import { FAMILY_LABELS, type FoyerState, type WikiFamily } from '@placard-wiki/domain';
-import { remediationCost } from './remediation.js';
+import { remediationCost } from './remediation';
 
 /** La question à laquelle ce rapport répond (§13). */
 export const PRE_ACTIVATION_QUESTION_FR = 'Qu’est-ce que je m’apprête à donner à lire à mon IA ?';

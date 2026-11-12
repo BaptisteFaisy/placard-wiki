@@ -4,7 +4,7 @@
  * affiché dans la fiche du foyer, avec sa méthode.
  */
 
-import type { WikiFamily } from './vocabulary.js';
+import type { WikiFamily } from './vocabulary';
 
 /** Base par famille : 20 – 55 (§8). */
 export const BASE_SCORE_BY_FAMILY: Record<WikiFamily, number> = {

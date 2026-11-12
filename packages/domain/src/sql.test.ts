@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TABLE_DDL, TABLE_NAMES } from './sql.js';
+import { TABLE_DDL, TABLE_NAMES } from './sql';
 
 /** Les onze tables du cahier des charges §20. */
 const EXPECTED_TABLES = [

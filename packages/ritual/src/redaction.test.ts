@@ -8,10 +8,10 @@ import {
   formatDateFr,
   redactionMarker,
   redactionPreview,
-} from './redaction.js';
-import type { RedactionSource } from './redaction.js';
-import type { StoragePort } from './ports.js';
-import { makeAttestation, makeFoyer } from './test-support.js';
+} from './redaction';
+import type { RedactionSource } from './redaction';
+import type { StoragePort } from './ports';
+import { makeAttestation, makeFoyer } from './test-support';
 
 /**
  * Recette §25.4 (modèle d'abord), §25.7 (refus sans attestation), §25.9

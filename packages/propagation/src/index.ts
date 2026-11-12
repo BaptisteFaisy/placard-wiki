@@ -14,8 +14,8 @@
 export const PACKAGE_NAME = '@placard-wiki/propagation';
 export const PACKAGE_STATUS = 'implemented' as const;
 
-export * from './detection.js';
-export * from './group.js';
-export * from './timeline.js';
-export * from './redaction-order.js';
-export * from './state-machine.js';
+export * from './detection';
+export * from './group';
+export * from './timeline';
+export * from './redaction-order';
+export * from './state-machine';

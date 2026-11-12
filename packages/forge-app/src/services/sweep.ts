@@ -22,11 +22,11 @@ import { groupIntoFoyers } from '@placard-wiki/propagation';
 import { FAMILY_LABELS } from '@placard-wiki/domain';
 import type { Foyer, PageExposure, ScanBudget, WikiFamily } from '@placard-wiki/domain';
 
-import type { ServiceContext, SweepResult } from './ports.js';
-import { computePageExposure } from './exposure.js';
-import { scoreFoyer } from './scoring.js';
-import { emptyAccumulator, scanPageInto } from './scan-page.js';
-import type { ScanAccumulator } from './scan-page.js';
+import type { ServiceContext, SweepResult } from './ports';
+import { computePageExposure } from './exposure';
+import { scoreFoyer } from './scoring';
+import { emptyAccumulator, scanPageInto } from './scan-page';
+import type { ScanAccumulator } from './scan-page';
 
 /** Paramètres d'un balayage borné. */
 export interface SweepParams {

@@ -19,7 +19,7 @@
 import type { Foyer, PurgeRequest } from '@placard-wiki/domain';
 import type { FoyerState } from '@placard-wiki/domain';
 
-import type { ClockPort, IdPort } from './ports.js';
+import type { ClockPort, IdPort } from './ports';
 
 /** Une page et ses versions à purger — la liste exacte, rien d'autre. */
 export interface PurgeTarget {

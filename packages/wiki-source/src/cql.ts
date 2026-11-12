@@ -12,9 +12,9 @@
  * texte (clés d'espace, titres) sont échappées.
  */
 
-import type { ConfluenceClient, CqlResultPage } from './api.js';
-import { paginate } from './cursor.js';
-import type { Batch, PageCursor } from './cursor.js';
+import type { ConfluenceClient, CqlResultPage } from './api';
+import { paginate } from './cursor';
+import type { Batch, PageCursor } from './cursor';
 
 /** Échappe une valeur littérale CQL (guillemets et antislashes). */
 export function cqlQuote(value: string): string {

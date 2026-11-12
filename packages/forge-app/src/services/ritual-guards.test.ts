@@ -11,10 +11,10 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { applyRedactionService, attestRotation } from './ritual-service.js';
-import { runSweep } from './sweep.js';
-import { FAKE_CLOUD_KEY, PAGE_ID, makeTestContext } from './test-support.js';
-import type { ServiceContext } from './ports.js';
+import { applyRedactionService, attestRotation } from './ritual-service';
+import { runSweep } from './sweep';
+import { FAKE_CLOUD_KEY, PAGE_ID, makeTestContext } from './test-support';
+import type { ServiceContext } from './ports';
 import type { Foyer } from '@placard-wiki/domain';
 
 /** Balaye la page de fixture et renvoie le premier foyer ouvert. */

@@ -30,15 +30,15 @@ import type {
 } from '@placard-wiki/domain';
 import type { SpaceSettings } from '@placard-wiki/domain';
 
-import type { ForgeStore, ListFoyersQuery } from './ports.js';
+import type { ForgeStore, ListFoyersQuery } from './ports';
 import {
   attachmentScanFromRow, attachmentScanToRow, budgetFromRow, budgetToRow,
   certificateFromRow, certificateToRow, cursorFromRow, cursorToRow,
   exposureFromRow, exposureToRow, foyerFromRow, foyerToRow, locationFromRow,
   locationToRow, ownerFromRow, ownerToRow, pageScanFromRow, pageScanToRow,
   purgeRequestFromRow, purgeRequestToRow, ritualStepFromRow, ritualStepToRow,
-} from './serialize.js';
-import { defaultSpaceSettings, rehydrate } from './memory-store.js';
+} from './serialize';
+import { defaultSpaceSettings, rehydrate } from './memory-store';
 
 /** Cache page → espace (la table `finding` n'a pas de colonne `space_key`). */
 const spaceCache = new Map<string, string>();

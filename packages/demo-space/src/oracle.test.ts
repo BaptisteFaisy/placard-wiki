@@ -8,8 +8,8 @@ import { describe, expect, it } from 'vitest';
 
 import { FAMILY_LABELS, GITES } from '@placard-wiki/domain';
 
-import { SECRET_FIXTURES } from './fixtures/index.js';
-import { DEMO_ORACLE, totalDeclare } from './oracle.js';
+import { SECRET_FIXTURES } from './fixtures/index';
+import { DEMO_ORACLE, totalDeclare } from './oracle';
 
 /** Compte les fixtures par couple famille|gîte. */
 function decompteFixtures(): Map<string, number> {

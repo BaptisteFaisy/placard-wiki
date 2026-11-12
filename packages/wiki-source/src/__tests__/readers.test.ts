@@ -7,12 +7,12 @@ import { describe, expect, it } from 'vitest';
 
 import { GITES } from '@placard-wiki/domain';
 
-import { createFixtureClient, loadFixtureData } from '../fixture-client.js';
+import { createFixtureClient, loadFixtureData } from '../fixture-client';
 import {
   readAllPageGites, readAttachments, readComments, readPageBody, readSpaceDescription,
   readTemplates, readTitlesAndLabels, readVersions,
-} from '../readers/index.js';
-import { giteOfItem, isSkipped, REASON_NOT_TEXT, REASON_TOO_LARGE } from '../types.js';
+} from '../readers/index';
+import { giteOfItem, isSkipped, REASON_NOT_TEXT, REASON_TOO_LARGE } from '../types';
 
 const client = createFixtureClient(loadFixtureData());
 

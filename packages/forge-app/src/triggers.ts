@@ -11,9 +11,9 @@
  * **à valider semaine 1** (§22) — voir `runtime/context.ts` (`createRealtime`).
  */
 
-import { getServiceContext } from './runtime/context.js';
-import { runSweep } from './services/index.js';
-import type { ServiceContext } from './services/ports.js';
+import { getServiceContext } from './runtime/context';
+import { runSweep } from './services/index';
+import type { ServiceContext } from './services/ports';
 
 interface ContentEvent {
   id?: string;

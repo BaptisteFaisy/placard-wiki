@@ -16,16 +16,16 @@ import {
   type Foyer,
   type WikiFamily,
 } from '@placard-wiki/domain';
-import { aiSurface } from './ai-surface.js';
-import { remediationCost } from './remediation.js';
+import { aiSurface } from './ai-surface';
+import { remediationCost } from './remediation';
 import {
   BASE_BLIND_SPOTS_FR,
   PRE_ACTIVATION_QUESTION_FR,
   isExposed,
   preActivationReport,
   type PreActivationFoyer,
-} from './pre-activation.js';
-import { UNKNOWN_SPACE_KEY, visibleTo } from './visible-to.js';
+} from './pre-activation';
+import { UNKNOWN_SPACE_KEY, visibleTo } from './visible-to';
 
 const NOW = '2026-11-11T12:00:00.000Z';
 

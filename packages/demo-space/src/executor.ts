@@ -9,7 +9,7 @@
  * registre des entités créées ; en `--dry-run`, elles restent lisibles `‹ID›`.
  */
 
-import type { SeedPlan, SeedStep } from './plan.js';
+import type { SeedPlan, SeedStep } from './plan';
 
 /** Signature minimale de `fetch`, injectable pour les tests. */
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;

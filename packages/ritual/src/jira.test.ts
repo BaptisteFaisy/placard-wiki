@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import type { OwnerResolution } from '@placard-wiki/domain';
 import { fakeValue, redactPreview } from '@placard/core';
 
-import { foyerMaskedPreview, jiraTicketPayload } from './jira.js';
-import { makeFoyer } from './test-support.js';
+import { foyerMaskedPreview, jiraTicketPayload } from './jira';
+import { makeFoyer } from './test-support';
 
 /** PW-13 : ticket assigné au propriétaire résolu, sans valeur brute (§5). */
 

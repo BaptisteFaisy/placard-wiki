@@ -7,13 +7,13 @@
  * les droits manquants sont distingués de « pas de données » (§19).
  */
 
-import { ENDPOINTS } from './api.js';
+import { ENDPOINTS } from './api';
 import type {
   AttachmentDownload, AttachmentMeta, CqlResultPage, CommentItem, ConfluenceClient,
   ConfluencePage, FetchLike, PageRestrictions, ResponseLike, SharingState, SpaceDescription,
   SpacePermissionEntry, TemplateMeta, VersionContent, VersionSummary,
-} from './api.js';
-import { MAX_ATTACHMENT_BYTES, REASON_FORBIDDEN } from './types.js';
+} from './api';
+import { MAX_ATTACHMENT_BYTES, REASON_FORBIDDEN } from './types';
 
 /** Erreur portée par le client HTTP : le statut compte pour la couverture. */
 export class ConfluenceHttpError extends Error {

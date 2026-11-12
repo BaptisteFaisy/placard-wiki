@@ -4,11 +4,11 @@
  * doit être exportée ici (garde : tools/validate_manifest.mjs).
  */
 
-export { resolver } from './resolver.js';
-export { contentCreated, contentUpdated, commentCreated } from './triggers.js';
-export { sweepConsumer } from './consumer.js';
-export { incrementalSweep, fullSweep } from './scheduled.js';
-export { purgeRequestHook } from './webtriggers.js';
+export { resolver } from './resolver';
+export { contentCreated, contentUpdated, commentCreated } from './triggers';
+export { sweepConsumer } from './consumer';
+export { incrementalSweep, fullSweep } from './scheduled';
+export { purgeRequestHook } from './webtriggers';
 export {
   scanPage,
   scanSpace,
@@ -23,4 +23,4 @@ export {
   applyRedaction,
   dismissFinding,
   openRemediationTicket,
-} from './mcp.js';
+} from './mcp';

@@ -4,8 +4,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { aperçuDe, fausseCleAws, empreinteDe, makeDetection, makePage } from './fixtures.js';
-import { groupIntoFoyers, foyerIdOf } from './group.js';
+import { aperçuDe, fausseCleAws, empreinteDe, makeDetection, makePage } from './fixtures';
+import { groupIntoFoyers, foyerIdOf } from './group';
 
 describe('groupIntoFoyers — une empreinte, plusieurs emplacements (§11)', () => {
   it('§25.1 : une clé AWS factice ouvre un foyer « clé cloud » avec empreinte et aperçu masqué', () => {

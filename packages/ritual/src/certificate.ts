@@ -18,7 +18,7 @@ import { createHmac } from 'node:crypto';
 
 import type { Certificate } from '@placard-wiki/domain';
 
-import type { ClockPort } from './ports.js';
+import type { ClockPort } from './ports';
 
 /** Les compteurs du certificat (§25.16) — que des nombres et une fourchette. */
 export interface CertificateCounters {

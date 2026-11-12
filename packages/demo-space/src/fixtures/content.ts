@@ -10,7 +10,7 @@
 
 import { FAMILY_LABELS } from '@placard-wiki/domain';
 
-import { MARQUE_SYNTHETIQUE, type SecretFixture } from './index.js';
+import { MARQUE_SYNTHETIQUE, type SecretFixture } from './index';
 
 /** Échappe le minimum vital du XML storage (aucun secret n'est mutilé). */
 export function echapperXml(text: string): string {

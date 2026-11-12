@@ -5,9 +5,9 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { fausseCleAws, empreinteDe, makeDetection } from './fixtures.js';
-import { groupIntoFoyers } from './group.js';
-import { redactionOrder } from './redaction-order.js';
+import { fausseCleAws, empreinteDe, makeDetection } from './fixtures';
+import { groupIntoFoyers } from './group';
+import { redactionOrder } from './redaction-order';
 
 describe('redactionOrder (§11, §25.4)', () => {
   const cle = fausseCleAws('recette-25-4');

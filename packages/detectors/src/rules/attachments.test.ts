@@ -8,7 +8,7 @@ import {
   isAttachmentOfInterest,
   isHighEntropyBlob,
   screenshotBlindSpot,
-} from './attachments.js';
+} from './attachments';
 
 /** Matière à forte entropie : 4 Ko de valeurs factices distinctes (core). */
 function highEntropyBlob(): string {

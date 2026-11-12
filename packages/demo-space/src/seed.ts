@@ -14,8 +14,8 @@
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { executePlan, renderPlan, type FetchLike, type Logger, type SeedOptions } from './executor.js';
-import { API_PREFIX_DEFAULT, buildSeedPlan } from './plan.js';
+import { executePlan, renderPlan, type FetchLike, type Logger, type SeedOptions } from './executor';
+import { API_PREFIX_DEFAULT, buildSeedPlan } from './plan';
 
 /** Variables d'environnement obligatoires en mode réel. */
 const REQUIRED_ENV = ['CONFLUENCE_BASE_URL', 'CONFLUENCE_EMAIL', 'CONFLUENCE_API_TOKEN'] as const;
