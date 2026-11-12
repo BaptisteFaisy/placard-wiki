@@ -66,7 +66,7 @@ async function scanAndNotify(event: ContentEvent, name: string): Promise<void> {
     console.info('[placard] événement sans identifiant de page : ignoré (déclaré, pas masqué).');
     return;
   }
-  const ctx = getServiceContext();
+  const ctx = await getServiceContext();
   await runSweep(ctx, { mode: 'on-demand', scope: pageId, maxPages: 1 });
   const authorId = typeof event.payload?.['authorId'] === 'string' ? event.payload['authorId'] : undefined;
   await emitBanner(ctx, pageId, authorId);

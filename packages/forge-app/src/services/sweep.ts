@@ -10,8 +10,9 @@
 
 import {
   INITIAL_CURSOR,
+  cqlDate,
   cqlFullTranche,
-  cqlIncremental,
+  cqlQuote,
   deserializeCursor,
   searchPaginated,
   serializeCursor,
@@ -42,6 +43,26 @@ export interface SweepParams {
 /** Date plancher pour un premier balayage incrémental (tout l'historique). */
 const EPOCH = '1970-01-01T00:00:00.000Z';
 
+/**
+ * CQL de la tranche « site » de la passe complète : toutes les pages du site,
+ * tri stable par identifiant. `cqlFullTranche` ne sait que viser un espace ;
+ * sans cette variante, la tranche « site » ne retournerait rien.
+ */
+const CQL_FULL_SITE = 'type = page ORDER BY id ASC';
+
+/**
+ * CQL incrémental **pages seulement**.
+ *
+ * Mesuré le 12 novembre 2026 : un CQL sans filtre de type ramène aussi les
+ * pièces jointes (1 276 sur le site de démo) — la passe les traitait comme des
+ * pages, chaque lecture échouait, et le balayage ne trouvait rien. Le filtre
+ * `type = page` est donc ajouté ici, sans toucher au paquet `wiki-source`.
+ */
+function cqlIncrementalPages(lastModifiedAt: string, spaceKey?: string): string {
+  const scope = spaceKey === undefined ? '' : `space = ${cqlQuote(spaceKey)} AND `;
+  return `${scope}type = page AND lastModified >= ${cqlQuote(cqlDate(lastModifiedAt))} ORDER BY lastModified ASC`;
+}
+
 const ALL_FAMILIES = Object.keys(FAMILY_LABELS) as WikiFamily[];
 
 /** Familles désactivées par espace (PW-24) : tout sauf `familiesEnabled`. */
@@ -66,9 +87,9 @@ async function collectPageIds(
   if (params.mode === 'incremental') {
     const stored = await ctx.store.cursors.get(params.scope, 'incremental');
     const since = stored?.lastModifiedAt ?? EPOCH;
-    cql = cqlIncremental(since, params.scope === 'site' ? undefined : params.scope);
+    cql = cqlIncrementalPages(since, params.scope === 'site' ? undefined : params.scope);
   } else {
-    cql = cqlFullTranche(params.scope);
+    cql = params.scope === 'site' ? CQL_FULL_SITE : cqlFullTranche(params.scope);
   }
   const pageIds: string[] = [];
   let cursor: PageCursor = from;

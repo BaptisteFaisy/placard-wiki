@@ -8,7 +8,7 @@ export { resolver } from './resolver';
 export { contentCreated, contentUpdated, commentCreated } from './triggers';
 export { sweepConsumer } from './consumer';
 export { incrementalSweep, fullSweep } from './scheduled';
-export { purgeRequestHook } from './webtriggers';
+export { purgeRequestHook, publicDemoHook } from './webtriggers';
 export {
   scanPage,
   scanSpace,

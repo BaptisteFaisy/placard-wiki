@@ -43,24 +43,64 @@ import { defaultSpaceSettings, rehydrate } from './memory-store';
 /** Cache page → espace (la table `finding` n'a pas de colonne `space_key`). */
 const spaceCache = new Map<string, string>();
 
+/**
+ * DDL de la table technique de l'app : elle ne porte aucune donnée métier du
+ * §20 (aucun secret, aucune empreinte) — uniquement le secret applicatif
+ * persisté une fois (la clé HMAC, voir `runtime/secret.ts`). Elle reste dans
+ * ce fichier, seul endroit du dépôt qui importe `@forge/sql`.
+ */
+const APP_SECRET_DDL = `CREATE TABLE IF NOT EXISTS app_secret (
+  name TEXT,
+  value TEXT,
+  created_at TEXT
+)`;
+
+/** Promesse de migration du conteneur : créée une fois, réessayée si elle échoue. */
+let schemaReady: Promise<void> | null = null;
+
+/** Crée le schéma (§20 : onze tables + la table technique). Idempotent. */
+export async function initSchema(): Promise<void> {
+  const runner = migrationRunner;
+  for (const name of TABLE_NAMES) {
+    runner.enqueue(`v001_${name}`, TABLE_DDL[name]);
+  }
+  runner.enqueue('v001_app_secret', APP_SECRET_DDL);
+  await runner.run();
+}
+
+/**
+ * Garantit le schéma AVANT toute requête. Le `migrationRunner` journalise ses
+ * passages dans `__migrations` et le DDL est en `CREATE TABLE IF NOT EXISTS` :
+ * l'appel est donc idempotent, y compris entre conteneurs. Chaque lecture et
+ * chaque écriture attend cette promesse — c'est elle qui manquait et faisait
+ * échouer le balayage planifié (« Table 'sweep_cursor' doesn't exist »).
+ */
+function ensureSchema(): Promise<void> {
+  if (schemaReady === null) {
+    schemaReady = initSchema().then(
+      () => {
+        console.info('[placard] schéma SQL prêt (onze tables du §20 + app_secret).');
+      },
+      (error: unknown) => {
+        schemaReady = null; // la passe suivante retente la migration
+        throw error;
+      },
+    );
+  }
+  return schemaReady;
+}
+
 /** Exécute une requête de lecture paramétrée. */
 async function select<T>(query: string, params: unknown[]): Promise<T[]> {
+  await ensureSchema();
   const res = (await sql.prepare(query).bindParams(...(params as never[])).execute()) as Result<T>;
   return res.rows as T[];
 }
 
 /** Exécute une mutation paramétrée (INSERT/UPDATE/DELETE). */
 async function mutate(query: string, params: unknown[]): Promise<void> {
+  await ensureSchema();
   await (sql.prepare(query).bindParams(...(params as never[])).execute() as Promise<Result<UpdateQueryResponse>>);
-}
-
-/** Crée le schéma (§20 : onze tables) via `migrationRunner`. Idempotent. */
-export async function initSchema(): Promise<void> {
-  const runner = migrationRunner;
-  for (const name of TABLE_NAMES) {
-    runner.enqueue(`v001_${name}`, TABLE_DDL[name]);
-  }
-  await runner.run();
 }
 
 function spaceOfFn(pageId: string): string | undefined {
@@ -356,6 +396,24 @@ export function createForgeStore(): ForgeStore {
       return findings.list(q);
     },
   };
+}
+
+/**
+ * Lit un secret applicatif persisté ; le crée au premier appel, puis le relit
+ * pour que deux exécutions concurrentes convergent vers la même valeur (le
+ * dernier écrit gagne, mais les deux repartent avec la même clé). La valeur n'est
+ * jamais journalisée.
+ */
+export async function readOrCreateAppSecret(name: string, generate: () => string): Promise<string> {
+  const rows = await select<{ value: string }>('SELECT value FROM app_secret WHERE name = ? LIMIT 1', [name]);
+  const existing = rows[0];
+  if (existing !== undefined && existing.value !== '') return existing.value;
+  await mutate('DELETE FROM app_secret WHERE name = ?', [name]);
+  await mutate('INSERT INTO app_secret (name, value, created_at) VALUES (?,?,?)', [
+    name, generate(), new Date().toISOString(),
+  ]);
+  const created = await select<{ value: string }>('SELECT value FROM app_secret WHERE name = ? LIMIT 1', [name]);
+  return created[0]?.value ?? '';
 }
 
 /** Export utilitaire : réhydratation synchrone d'un foyer avec l'espace connu. */
