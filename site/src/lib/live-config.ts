@@ -6,7 +6,8 @@
 // override de build `VITE_LIVE_API` permet de tester sans toucher au code.
 
 /** URL de l'API live (webtrigger Forge). Vide = mode snapshot. */
-export const LIVE_API_URL = '';
+export const LIVE_API_URL =
+  'https://268bea73-73bf-4b1e-a3e7-862161c6298a.webtrigger.atlassian.app/public/U3iRFUXiNU509Lv_sk5n7382zbI';
 
 /** Timeout d'une requête live (ms) — au-delà, on bascule sur le snapshot. */
 export const LIVE_TIMEOUT_MS = 8000;
