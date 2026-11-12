@@ -22,7 +22,7 @@
 import { Queue } from '@forge/events';
 
 import { getServiceContext } from './runtime/context';
-import { buildingModel, coverageReport, generateCertificate, registryRows } from './services/index';
+import { buildingModel, coverageReport, generateCertificate, registryRows, runSweep } from './services/index';
 import type { ServiceContext } from './services/ports';
 import type {
   BuildingModel, Certificate, CoverageReport, Foyer, RegistryRow, ScanBudget,
@@ -131,6 +131,22 @@ const LIVE_SITE = {
   name: 'one-atlas-cndz.atlassian.net',
   url: 'https://one-atlas-cndz.atlassian.net/wiki',
 };
+
+/** Espace de démonstration semé de faux secrets (celui que le public peut balayer). */
+const DEMO_SPACE = 'PLACARDDEMO';
+
+/** Borne de la passe en ligne du webtrigger (le webtrigger tient en 55 s). */
+const INLINE_SWEEP_PAGES = 25;
+
+/** Ce que la passe demandée a donné — déclaré, jamais inventé. */
+interface RefreshReport {
+  scope: string;
+  status: string;
+  pagesScanned: number;
+  foyersTouched: number;
+  blindSpots?: string[];
+  honesty: string;
+}
 
 /** Un espace réel — même forme que `SPACES` du site public (`key`, `fr`, `en`). */
 interface LiveSpace {
@@ -266,10 +282,41 @@ async function queueSweep(scope: string | string[] | undefined): Promise<string 
 }
 
 /**
+ * Passe bornée demandée par le public (`?sweep=1`) : elle porte sur l'espace
+ * de démonstration (`PLACARDDEMO`), en ligne, dans la limite de 55 s du
+ * webtrigger. Un seul espace est autorisé — le point public n'est pas un
+ * déclencheur de balayage du site.
+ */
+async function inlineSweep(ctx: ServiceContext, asked: string | string[] | undefined): Promise<RefreshReport | null> {
+  const value = Array.isArray(asked) ? asked[0] : asked;
+  if (value === undefined || value === '' || value === '0') return null;
+  const scope = DEMO_SPACE;
+  const result = await runSweep(ctx, { mode: 'full', scope, maxPages: INLINE_SWEEP_PAGES })
+    .catch(() => null);
+  if (result === null) {
+    return {
+      scope,
+      status: 'erreur',
+      pagesScanned: 0,
+      foyersTouched: 0,
+      honesty: 'Passe en ligne impossible — le curseur de la passe planifiée reste la source de vérité.',
+    };
+  }
+  return {
+    scope,
+    status: result.done ? 'terminée' : 'tranche bornée (passe à reprends)',
+    pagesScanned: result.pagesScanned,
+    foyersTouched: result.foyersTouched,
+    blindSpots: result.blindSpots.slice(0, 5),
+    honesty: `Passe en ligne, ${String(INLINE_SWEEP_PAGES)} pages au maximum (limite du webtrigger).`,
+  };
+}
+
+/**
  * Webtrigger public : la chaîne live. `GET` renvoie le JSON public, `OPTIONS`
- * le préflight CORS. Le paramètre `?sweep=<ESPACE>` met la passe de cet
- * espace en file (le consumer la fait, hors du chemin du webtrigger) : la
- * réponse dit alors ce qui a été mis en file, jamais un résultat inventé.
+ * le préflight CORS. Le paramètre `?sweep=1` demande une passe bornée en ligne
+ * sur l'espace de démonstration (les données renvoyées sont alors fresh) ;
+ * `?sweep=<ESPACE>` met une passe en file pour le consumer.
  */
 export async function publicDemoHook(request: WebtriggerRequest): Promise<WebtriggerResponse> {
   if (request.method === 'OPTIONS') {
@@ -277,10 +324,12 @@ export async function publicDemoHook(request: WebtriggerRequest): Promise<Webtri
   }
   const ctx = await getServiceContext();
   console.info(`[placard] public-demo-hook ${request.method} ${request.path}`);
+  const refresh = await inlineSweep(ctx, request.queryParameters?.['sweep']);
   const payload = await buildPublicDemo(ctx);
-  const queued = await queueSweep(request.queryParameters?.['sweep']);
-  const body: PublicDemoPayload & { refresh?: { queued: boolean; scope: string } } = payload;
-  if (queued !== null) body.refresh = { queued: true, scope: queued };
+  const queued = await queueSweep(request.queryParameters?.['queue']);
+  const body: PublicDemoPayload & { refresh?: RefreshReport; queued?: string } = payload;
+  if (refresh !== null) body.refresh = refresh;
+  if (queued !== null) body.queued = queued;
   return {
     statusCode: 200,
     headers: { ...JSON_HEADERS, ...CORS_HEADERS },

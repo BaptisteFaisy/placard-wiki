@@ -42,6 +42,13 @@ export interface SweepParams {
 /** Date plancher pour un premier balayage incrémental (tout l'historique). */
 const EPOCH = '1970-01-01T00:00:00.000Z';
 
+/**
+ * CQL de la tranche « site » de la passe complète : toutes les pages du site,
+ * tri stable par identifiant. `cqlFullTranche` ne sait que viser un espace ;
+ * sans cette variante, la tranche « site » ne retournerait rien.
+ */
+const CQL_FULL_SITE = 'type = page ORDER BY id ASC';
+
 const ALL_FAMILIES = Object.keys(FAMILY_LABELS) as WikiFamily[];
 
 /** Familles désactivées par espace (PW-24) : tout sauf `familiesEnabled`. */
@@ -68,7 +75,7 @@ async function collectPageIds(
     const since = stored?.lastModifiedAt ?? EPOCH;
     cql = cqlIncremental(since, params.scope === 'site' ? undefined : params.scope);
   } else {
-    cql = cqlFullTranche(params.scope);
+    cql = params.scope === 'site' ? CQL_FULL_SITE : cqlFullTranche(params.scope);
   }
   const pageIds: string[] = [];
   let cursor: PageCursor = from;

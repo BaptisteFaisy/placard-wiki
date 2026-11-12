@@ -26,9 +26,15 @@ export async function incrementalSweep(): Promise<void> {
   );
   if (result.nextCursor !== null) {
     // La passe n'est pas terminée : la suite part sur la file du consumer (§14).
-    await new Queue({ key: SWEEP_QUEUE }).push({
-      body: { mode: 'incremental', scope: 'site', cursor: result.nextCursor },
-    });
+    try {
+      await new Queue({ key: SWEEP_QUEUE }).push({
+        body: { mode: 'incremental', scope: 'site', cursor: result.nextCursor },
+      });
+    } catch {
+      // File indisponible : le curseur est persisté, la reprise se fera au
+      // prochain passage du déclencheur. Déclaré, jamais masqué (§19).
+      console.info('[placard] incrémental : mise en file impossible — curseur conservé, reprise au prochain passage.');
+    }
   }
 }
 
@@ -37,7 +43,11 @@ export async function fullSweep(): Promise<void> {
   // §14 : la passe complète est découpée en tranches d'espaces priorisées par
   // exposition. La liste des espaces et l'ordre exact sont à valider semaine 1
   // (§22) ; en l'état, une tranche « site » est publiée, le consumer la découpe.
-  await new Queue({ key: SWEEP_QUEUE }).push({
-    body: { mode: 'full', scope: 'site' },
-  });
+  try {
+    await new Queue({ key: SWEEP_QUEUE }).push({
+      body: { mode: 'full', scope: 'site' },
+    });
+  } catch {
+    console.info('[placard] full-sweep : mise en file impossible — passe complète à déclencher autrement.');
+  }
 }
