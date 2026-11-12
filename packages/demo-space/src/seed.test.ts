@@ -215,6 +215,20 @@ describe('executePlan contre les erreurs réelles', () => {
     expect(byId.get('template:modele')?.status).toBe('skipped');
   });
 
+  it('ignore la description d’espace déjà identique (PUT rejoué à tort)', async () => {
+    const plan = buildSeedPlan();
+    const desc = (plan.steps.find((s) => s.id === 'space-desc:update')!.body as Record<string, unknown>).description;
+    const fetch = fetchPilote([], (url, method) => {
+      if (method !== 'GET') return { status: 200, body: '{"id":"x"}' };
+      if (url.includes('expand=description.plain')) {
+        return { status: 200, body: JSON.stringify({ id: '3833860', key: SPACE_KEY, description: desc }) };
+      }
+      return { status: 200, body: RIEN };
+    });
+    const report = await executePlan(plan, OPTS, fetch, () => {});
+    expect(report.results.find((r) => r.id === 'space-desc:update')?.status).toBe('skipped');
+  });
+
   it('ignore la mise à jour quand la page a déjà la version cible', async () => {
     const fetch = fetchPilote([], (url, method) => {
       if (method !== 'GET') return { status: 200, body: '{"id":"x"}' };

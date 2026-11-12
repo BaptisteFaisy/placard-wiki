@@ -97,11 +97,23 @@ function versionCourante(obj: JsonObj): number {
   return typeof version.number === 'number' ? version.number : 0;
 }
 
+/** Description d'espace en représentation `plain` (corps envoyé ou relu). */
+function descriptionPlain(brut: unknown): string {
+  const obj = (brut ?? {}) as JsonObj;
+  const plain = ((obj.description ?? {}) as JsonObj).plain as JsonObj | undefined;
+  return plain?.value === undefined ? '' : String(plain.value);
+}
+
 /** Extrait l'identifiant Confluence d'une réponse de lookup, selon la nature. */
 function matchEntity(step: SeedStep, json: unknown): string | undefined {
   if (json === null || typeof json !== 'object') return undefined;
   const obj = json as JsonObj;
   if (step.kind === 'space') return objId(obj.id) ?? objId(obj.key);
+  if (step.kind === 'space-desc') {
+    // Déjà à jour si la description relue est exactement celle du plan.
+    if (descriptionPlain(obj) !== descriptionPlain(step.body)) return undefined;
+    return objId(obj.id) ?? objId(obj.key);
+  }
   if (step.kind === 'update') {
     // Une mise à jour est réputée appliquée dès que la version cible est atteinte.
     const id = objId(obj.id);

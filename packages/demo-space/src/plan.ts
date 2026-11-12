@@ -119,6 +119,7 @@ function espaceSteps(): SeedStep[] {
       kind: 'space-desc',
       method: 'PUT',
       path: `/space/${SPACE_KEY}`,
+      lookup: `/space/${SPACE_KEY}?expand=description.plain`,
       // `name` volontairement absent : le PUT conserve alors le nom existant.
       body: { key: SPACE_KEY, description },
       note: 'description en représentation `plain` (seule acceptée) ; nom de l’espace conservé',
