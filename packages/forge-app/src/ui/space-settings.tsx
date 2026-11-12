@@ -16,6 +16,7 @@ import { FilterRange, FilterSelect, FilterText, FilterToggle, type SelectOption 
 import { useI18n, type Lang } from './i18n';
 import { EmptyNotice, Loading } from './widgets';
 import { useCallback, useEffect, useState } from 'react';
+import { mountScreen } from './mount';
 
 /** Une exclusion en cours de saisie : motif + raison (raison obligatoire). */
 interface ExclusionDraft {
@@ -288,3 +289,7 @@ export default function SpaceSettings(): JSX.Element {
     </Stack>
   );
 }
+
+// Point d'entrée de la ressource `placard-space-settings` (forme UI Kit
+// actuelle) : Forge importe ce module et attend qu'il demande son rendu.
+mountScreen(<SpaceSettings />);

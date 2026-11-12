@@ -16,6 +16,7 @@ import { AdoptionPanel } from './adoption-panel';
 import { BuildingPanel } from './building-panel';
 import { BudgetPanel } from './budget-panel';
 import { useI18n } from './i18n';
+import { mountScreen } from './mount';
 import { RegistryPanel } from './registry-panel';
 import { LangToggle } from './widgets';
 
@@ -66,3 +67,7 @@ export default function GlobalPage(): JSX.Element {
     </Stack>
   );
 }
+
+// Point d'entrée de la ressource `placard-global` (forme UI Kit actuelle) :
+// Forge importe ce module et attend qu'il demande son propre rendu.
+mountScreen(<GlobalPage />);
