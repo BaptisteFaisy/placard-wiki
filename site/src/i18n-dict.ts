@@ -41,6 +41,7 @@ export const DICT = {
   filterFamily: D('Family', 'Famille'),
   filterState: D('State', 'État'),
   filterScore: D('Min score', 'Score min'),
+  filterCaption: D('Filters', 'Filtres'),
   filterAll: D('All', 'Tous'),
   colSpace: D('Space', 'Espace'),
   colPage: D('Page', 'Page'),
@@ -291,6 +292,30 @@ export const DICT = {
   covLastPass: D('Last pass', 'Dernière passe'),
   covBudgetLink: D('Unread files and the scan budget are detailed in the “Budget & coverage” tab.', 'Les fichiers non lus et le budget de balayage sont détaillés dans l’onglet « Budget & couverture ».'),
   covOpenBudget: D('Open the budget tab', 'Ouvrir l’onglet Budget'),
+  // ---- Indicateur de source : live ou snapshot, toujours visible ----
+  liveBadge: D('LIVE', 'LIVE'),
+  snapshotBadge: D('SNAPSHOT', 'SNAPSHOT'),
+  liveBadgeLoading: D('LIVE (loading…)', 'LIVE (chargement…)'),
+  liveSiteLabel: D('real site', 'site réel'),
+  liveScannedAgo: D('scanned {n} min ago', 'balayé il y a {n} min'),
+  liveScannedNow: D('scanned just now', 'balayé à l’instant'),
+  liveScannedUnknown: D('scan time unknown', 'heure de balayage inconnue'),
+  liveSnapshotNote: D('embedded data — live API unreachable', 'données embarquées — API live injoignable'),
+  liveReasonNotConfigured: D('no live API configured (snapshot mode)', 'aucune API live configurée (mode snapshot)'),
+  liveReasonTimeout: D('timeout', 'délai dépassé'),
+  liveReasonNetwork: D('network error', 'erreur réseau'),
+  liveReasonHttp: D('HTTP error', 'erreur HTTP'),
+  liveReasonInvalidShape: D('unexpected response format', 'format de réponse inattendu'),
+  liveReasonUnknown: D('unknown error', 'erreur inconnue'),
+  liveRefresh: D('Refresh', 'Rafraîchir'),
+  liveRefreshing: D('Refreshing…', 'Rafraîchissement…'),
+  liveAutoRefreshNote: D('auto-refresh every 2 min', 'rafraîchissement automatique toutes les 2 min'),
+  liveDemoSiteWarning: D('demo site, fake secrets', 'site de démonstration, faux secrets'),
+  liveDemoSiteNote: D(
+    'The live data comes from a real Atlassian demo site (one-atlas-cndz) and its PLACARDDEMO space, which contains FAKE secrets planted for the demo. Masked previews only — no raw value is ever stored, displayed or sent.',
+    'Les données live viennent d’un vrai site de démo Atlassian (one-atlas-cndz) et de son espace PLACARDDEMO, qui contient de FAUX secrets plantés pour la démo. Aperçus masqués uniquement — aucune valeur brute n’est jamais stockée, affichée ni envoyée.',
+  ),
+  syntheticLive: D('LIVE DATA — demo site, fake secrets', 'DONNÉES LIVE — site de démo, faux secrets'),
 } as const;
 
 export type DictKey = keyof typeof DICT;

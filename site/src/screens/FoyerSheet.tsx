@@ -10,8 +10,9 @@ import {
   SHARING_LABELS,
 } from '@placard-wiki/domain';
 import type { AppliedScoreTerm, Foyer, OwnerResolution, PageExposure, ScoreTermId } from '@placard-wiki/domain';
-import { EXPOSURES, FOYERS, OWNERS, RITUALS, remediationHours } from '../data/demo.js';
+import { remediationHours } from '../data/labels.js';
 import { useLang } from '../i18n.js';
+import { usePlacardData } from '../data/placard-data.js';
 import { DangerBadge, FamilyLabel, GiteLabel, StateBadge, formatDate } from '../ui.js';
 
 /** Libellé d'un état de partage, dans la langue courante. */
@@ -27,9 +28,10 @@ interface SheetProps {
 
 export function FoyerSheetScreen({ foyer, onSelectFoyer }: SheetProps): JSX.Element {
   const { t, pick } = useLang();
-  const exposure = foyer.primaryPageId ? EXPOSURES[foyer.primaryPageId] : undefined;
-  const owner = foyer.primaryPageId ? OWNERS[foyer.primaryPageId] : undefined;
-  const ritual = RITUALS[foyer.id] ?? [];
+  const { dataset } = usePlacardData();
+  const exposure = foyer.primaryPageId ? dataset.exposures[foyer.primaryPageId] : undefined;
+  const owner = foyer.primaryPageId ? dataset.owners[foyer.primaryPageId] : undefined;
+  const ritual = dataset.rituals[foyer.id] ?? [];
 
   return (
     <section className="screen">
@@ -38,7 +40,7 @@ export function FoyerSheetScreen({ foyer, onSelectFoyer }: SheetProps): JSX.Elem
         <label>
           {t('tabFoyer')} :{' '}
           <select value={foyer.id} onChange={(e) => onSelectFoyer(e.target.value)}>
-            {Object.values(FOYERS).map((f) => (
+            {Object.values(dataset.foyers).map((f) => (
               <option key={f.id} value={f.id}>
                 {f.id} — {f.family}
               </option>

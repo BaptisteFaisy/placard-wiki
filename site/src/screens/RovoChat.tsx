@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { ROVO_QUESTIONS, rovoAnswer, rovoFallback } from '../data/rovo.js';
 import { useLang } from '../i18n.js';
+import { usePlacardData } from '../data/placard-data.js';
 
 /** Un message du chat : rôle + texte (les sauts de ligne sont affichés). */
 interface ChatMessage {
@@ -93,6 +94,7 @@ function ChatComposer(props: {
 
 export function RovoChatScreen(): JSX.Element {
   const { t, lang } = useLang();
+  const { dataset } = usePlacardData();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
 
@@ -107,7 +109,7 @@ export function RovoChatScreen(): JSX.Element {
   const askStarter = (index: number): void => {
     const question = ROVO_QUESTIONS[index];
     if (!question) return;
-    push(question[lang], rovoAnswer(question.id, lang));
+    push(question[lang], rovoAnswer(question.id, lang, dataset));
   };
 
   const askFree = (): void => {

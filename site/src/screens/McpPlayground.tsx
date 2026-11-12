@@ -7,6 +7,7 @@ import { useRef, useState } from 'react';
 import { MCP_TOOLS, MCP_TOOL_BY_KEY } from '../data/mcp.js';
 import type { McpToolSpec } from '../data/mcp.js';
 import { useLang } from '../i18n.js';
+import { usePlacardData } from '../data/placard-data.js';
 import { newSession, runTool } from '../lib/mcp-run.js';
 import type { ActorKind, JsonValue, McpSession } from '../lib/mcp-run.js';
 
@@ -156,6 +157,7 @@ function ResponsePanel({ response }: { response: JsonValue | null }): JSX.Elemen
 
 export function McpPlaygroundScreen(): JSX.Element {
   const { t } = useLang();
+  const { dataset } = usePlacardData();
   const [selected, setSelected] = useState<string>(MCP_TOOLS[0]!.key);
   const [args, setArgs] = useState<Record<string, string>>(() => initialArgs(MCP_TOOLS[0]!));
   const [actorKind, setActorKind] = useState<ActorKind>('human');
@@ -171,7 +173,7 @@ export function McpPlaygroundScreen(): JSX.Element {
 
   const run = async (): Promise<void> => {
     setRunning(true);
-    const out = await runTool(selected, args, actorKind, sessionRef.current);
+    const out = await runTool(selected, args, actorKind, sessionRef.current, dataset);
     setResponse(out);
     setRunning(false);
   };

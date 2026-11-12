@@ -8,27 +8,28 @@ import { useMemo, useState } from 'react';
 import { FAMILY_LABELS } from '@placard-wiki/domain';
 import { preActivationReport } from '@placard-wiki/exposure';
 import type { PreActivationReport } from '@placard-wiki/exposure';
-import { BASE_BLIND_SPOT_EN, COVERAGE, SPACE_BLIND_SPOT_EN } from '../data/coverage.js';
-import { EXPOSURES, FOYERS, SPACES } from '../data/demo.js';
-import { CERTIFICATE } from '../data/demo-site.js';
+import { BASE_BLIND_SPOT_EN } from '../data/coverage.js';
+import type { Certificate } from '@placard-wiki/domain';
 import { useLang } from '../i18n.js';
+import { usePlacardData } from '../data/placard-data.js';
+import type { PlacardDataset } from '../data/dataset.js';
 import { DangerBadge } from '../ui.js';
 
 /** Horodatage figé de la démo — rapports déterministes (§20). */
 const DEMO_NOW = '2026-11-10T10:00:00Z';
 
 /** Construit le VRAI rapport de pré-activation pour un espace. */
-function reportFor(spaceKey: string): PreActivationReport {
-  const foyers = Object.values(FOYERS)
+function reportFor(spaceKey: string, data: PlacardDataset): PreActivationReport {
+  const foyers = Object.values(data.foyers)
     .filter((foyer) => foyer.spaceKey === spaceKey)
     .map((foyer) => ({
       id: foyer.id,
       family: foyer.family,
       score: foyer.score,
       state: foyer.state,
-      presumedIndexed: EXPOSURES[foyer.primaryPageId ?? '']?.aiSurface.presumedIndexed ?? false,
+      presumedIndexed: data.exposures[foyer.primaryPageId ?? '']?.aiSurface.presumedIndexed ?? false,
     }));
-  return preActivationReport({ spaceKey, foyers, now: DEMO_NOW });
+  return preActivationReport({ spaceKey, foyers, now: data.generatedAt ?? DEMO_NOW });
 }
 
 /** Chiffres clés du rapport — jamais de contenu de foyer (§23). */
@@ -79,7 +80,7 @@ function FamilyTable({ report }: { report: PreActivationReport }): JSX.Element {
 }
 
 /** Angles morts : ceux du paquet (FR, traduits) + ceux de l'espace. */
-function BlindSpots({ report }: { report: PreActivationReport }): JSX.Element {
+function BlindSpots({ report, spaceBlindSpots, spaceBlindSpotsEn }: { report: PreActivationReport; spaceBlindSpots: readonly string[]; spaceBlindSpotsEn?: readonly string[] }): JSX.Element {
   const { t, lang } = useLang();
   return (
     <>
@@ -92,8 +93,8 @@ function BlindSpots({ report }: { report: PreActivationReport }): JSX.Element {
       <p className="small muted">{t('preactFrNote')}</p>
       <h3>{t('preactBlindSpace')}</h3>
       <ul>
-        {COVERAGE.blindSpots.map((spot, index) => (
-          <li key={spot}>{lang === 'en' ? (SPACE_BLIND_SPOT_EN[index] ?? spot) : spot}</li>
+        {spaceBlindSpots.map((spot, index) => (
+          <li key={spot}>{lang === 'en' ? (spaceBlindSpotsEn?.[index] ?? spot) : spot}</li>
         ))}
       </ul>
     </>
@@ -101,18 +102,18 @@ function BlindSpots({ report }: { report: PreActivationReport }): JSX.Element {
 }
 
 /** Le certificat correspondant — chiffres uniquement, jamais de valeur. */
-function MatchingCertificate({ onOpenCertificate }: { onOpenCertificate: () => void }): JSX.Element {
+function MatchingCertificate({ onOpenCertificate, certificate }: { onOpenCertificate: () => void; certificate: Certificate }): JSX.Element {
   const { t } = useLang();
   return (
     <section className="cert-mini" aria-label={t('preactCert')}>
       <h3>{t('preactCert')}</h3>
       <p className="small muted">{t('preactCertNote')}</p>
       <p>
-        <code>{CERTIFICATE.id}</code> — {CERTIFICATE.scope} — {CERTIFICATE.issuedAt}
+        <code>{certificate.id}</code> — {certificate.scope} — {certificate.issuedAt}
       </p>
       <p>
-        {t('certOpen')}: {CERTIFICATE.open} · {t('certRotated')}: {CERTIFICATE.rotated} · {t('certRedacted')}:{' '}
-        {CERTIFICATE.redacted} · {t('certPurged')}: {CERTIFICATE.purged}
+        {t('certOpen')}: {certificate.open} · {t('certRotated')}: {certificate.rotated} · {t('certRedacted')}:{' '}
+        {certificate.redacted} · {t('certPurged')}: {certificate.purged}
       </p>
       <button className="action" type="button" onClick={onOpenCertificate}>
         {t('preactOpenCert')}
@@ -123,8 +124,13 @@ function MatchingCertificate({ onOpenCertificate }: { onOpenCertificate: () => v
 
 export function PreActivationScreen({ onOpenCertificate }: { onOpenCertificate: () => void }): JSX.Element {
   const { t, pick, lang } = useLang();
-  const [spaceKey, setSpaceKey] = useState<string>('DEMO');
-  const report = useMemo(() => reportFor(spaceKey), [spaceKey]);
+  const { dataset } = usePlacardData();
+  const spaces = dataset.spaces;
+  const [chosen, setChosen] = useState<string>('');
+  // L'espace retenu : celui choisi s'il existe encore, sinon le premier connu
+  // (le jeu live peut ne pas porter les mêmes espaces que la démo).
+  const spaceKey = spaces.some((space) => space.key === chosen) ? chosen : spaces[0]?.key ?? '';
+  const report = useMemo(() => reportFor(spaceKey, dataset), [spaceKey, dataset]);
 
   return (
     <section className="screen">
@@ -133,8 +139,8 @@ export function PreActivationScreen({ onOpenCertificate }: { onOpenCertificate: 
       <label className="field-label" htmlFor="preact-space">
         {t('preactSpace')}
       </label>
-      <select id="preact-space" value={spaceKey} onChange={(e) => setSpaceKey(e.target.value)}>
-        {SPACES.map((space) => (
+      <select id="preact-space" value={spaceKey} onChange={(e) => setChosen(e.target.value)}>
+        {spaces.map((space) => (
           <option key={space.key} value={space.key}>
             {space.key} — {pick(space)}
           </option>
@@ -153,8 +159,8 @@ export function PreActivationScreen({ onOpenCertificate }: { onOpenCertificate: 
         </p>
       )}
       <FamilyTable report={report} />
-      <BlindSpots report={report} />
-      <MatchingCertificate onOpenCertificate={onOpenCertificate} />
+      <BlindSpots report={report} spaceBlindSpots={dataset.coverage.blindSpots} spaceBlindSpotsEn={dataset.coverageBlindSpotsEn} />
+      <MatchingCertificate onOpenCertificate={onOpenCertificate} certificate={dataset.certificate} />
     </section>
   );
 }
