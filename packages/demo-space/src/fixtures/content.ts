@@ -17,20 +17,92 @@ export function echapperXml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+/**
+ * Limite d'un titre de page Confluence Cloud, mesurée sur le site réel :
+ * au-delà, `POST /content` répond HTTP 400 « Title cannot be longer than
+ * 255 characters. » (c'est ce qui faisait échouer la famille 3, dont la
+ * valeur est un bloc PEM de six lignes).
+ */
+export const TITRE_MAX_CARACTERES = 255;
+
+/** Ramène une valeur à une seule ligne (Confluence aplatit les sauts de ligne d'un titre). */
+export function surUneLigne(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Borner une valeur à `budget` caractères en gardant la **tête et la queue** :
+ * les marqueurs `-----BEGIN … PRIVATE KEY-----` et `-----END …-----` survivent,
+ * donc un bloc PEM tronqué reste détectable par la famille `private-key`
+ * (motif « une seule ligne » des détecteurs). Le milieu est remplacé par « … ».
+ */
+export function bornerPourTitre(value: string, budget: number): string {
+  const ligne = surUneLigne(value);
+  if (ligne.length <= budget) return ligne;
+  const tete = Math.ceil((budget - 1) * 0.6);
+  const queue = Math.max(0, budget - 1 - tete);
+  return `${ligne.slice(0, tete)}…${ligne.slice(ligne.length - queue)}`;
+}
+
 /** Identifiant (colonne « identifiant ») stable et lisible pour une fixture. */
 export function identifiantDe(fixture: SecretFixture): string {
   const en = FAMILY_LABELS[fixture.family].en;
   return `svc-${fixture.number}-${en.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 }
 
-/** Titre du gîte « titres-et-etiquettes » : « accès staging (mdp: …) ». */
+/** Gabarit du titre : la place laissée à la valeur est ce qui reste une fois le texte fixe posé. */
+function gabaritTitre(valeur: string): string {
+  return `accès staging (mdp: ${valeur}) [${MARQUE_SYNTHETIQUE}]`;
+}
+
+/**
+ * Titre du gîte « titres-et-etiquettes » : « accès staging (mdp: …) ».
+ * La valeur est mise sur une ligne et bornée pour tenir dans les 255
+ * caractères imposés par Confluence (sinon HTTP 400 — famille 3, bloc PEM).
+ */
 export function titreSecret(fixture: SecretFixture): string {
-  return `accès staging (mdp: ${fixture.value}) [${MARQUE_SYNTHETIQUE}]`;
+  const budget = TITRE_MAX_CARACTERES - gabaritTitre('').length;
+  return gabaritTitre(bornerPourTitre(fixture.value, budget));
 }
 
 /** Commentaire du gîte « commentaires » : « le mot de passe est … ». */
 export function commentaireSecret(fixture: SecretFixture): string {
   return `Le mot de passe est ${fixture.value} (${MARQUE_SYNTHETIQUE}).`;
+}
+
+/**
+ * Le même commentaire en storage XML. Le paragraphe est obligatoire (un `&`
+ * nu est refusé : HTTP 400) et la valeur est échappée — la famille 11 porte
+ * un `&` dans sa valeur factice.
+ */
+export function commentaireXml(fixture: SecretFixture): string {
+  return `<p>${echapperXml(commentaireSecret(fixture))}</p>`;
+}
+
+/** Entités nommées que Confluence renvoie dans le storage qu'il réécrit. */
+const ENTITES: Readonly<Record<string, string>> = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+  Eacute: 'É', eacute: 'é', agrave: 'à', ccedil: 'ç', ucirc: 'û',
+  mdash: '—', ndash: '–', hellip: '…', egrave: 'è', ecirc: 'ê',
+};
+
+/** Décode les entités HTML numériques et les entités nommées courantes. */
+export function decoderEntites(text: string): string {
+  return text.replace(/&(#x[0-9a-fA-F]+|#[0-9]+|[A-Za-z][A-Za-z0-9]*);/g, (motif, entite: string) => {
+    if (entite.startsWith('#x')) return String.fromCodePoint(parseInt(entite.slice(2), 16));
+    if (entite.startsWith('#')) return String.fromCodePoint(parseInt(entite.slice(1), 10));
+    return ENTITES[entite] ?? motif;
+  });
+}
+
+/**
+ * Texte nu d'un storage XML : balises retirées, entités décodées, espaces
+ * aplatis. Sert à la déduplication des commentaires — Confluence **réécrit**
+ * le corps envoyé (`É` → `&Eacute;`, `—` → `&mdash;`), une comparaison brute
+ * ne retrouverait jamais le commentaire déjà posé et le duplicerait.
+ */
+export function texteNu(storageXml: string): string {
+  return decoderEntites(storageXml.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
 }
 
 /** Une pièce jointe factice : `.env` ou `.pem`, selon la famille. */
@@ -61,12 +133,15 @@ export function corpsDePageXml(fixtures: readonly SecretFixture[]): string {
   return `${titre}<table><tbody>${entete}${lignes}</tbody></table>`;
 }
 
-/** Description d'espace : toutes les valeurs réunies (gîte le plus lu). */
-export function espaceDescriptionXml(fixtures: readonly SecretFixture[]): string {
-  const lignes = fixtures
-    .map((f) => `<li><strong>${f.number}</strong> — ${echapperXml(f.value)}</li>`)
-    .join('');
-  return `<p>${MARQUE_SYNTHETIQUE}</p><ul>${lignes}</ul>`;
+/**
+ * Description d'espace, en **texte brut**. L'API Confluence Cloud n'accepte
+ * qu'une description d'espace en représentation `plain` (vérifié sur le site :
+ * `description.view` → HTTP 400 « For now, only a space description with PLAIN
+ * representation is valid »). Aucune balise : une ligne par valeur.
+ */
+export function espaceDescriptionTexte(fixtures: readonly SecretFixture[]): string {
+  const lignes = fixtures.map((f) => `${f.number} — ${f.value}`);
+  return [MARQUE_SYNTHETIQUE, ...lignes].join('\n');
 }
 
 /** Version 1 de l'historique : les secrets en clair. */
@@ -78,7 +153,7 @@ export function historiqueV1Xml(fixtures: readonly SecretFixture[]): string {
 
 /** Version 2 de l'historique : « corrigée » — la v1 reste lisible (§6). */
 export function historiqueV2Xml(): string {
-  return `<p>Mots de passe retirés de cette version (${MARQUE_SYNTHETIQUE}).`;
+  return `<p>Mots de passe retirés de cette version (${MARQUE_SYNTHETIQUE}).</p>`;
 }
 
 /** Modèle de page : un runbook modèle qui recopie les identifiants. */

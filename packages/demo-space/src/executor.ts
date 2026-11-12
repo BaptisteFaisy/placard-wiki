@@ -9,6 +9,7 @@
  * registre des entités créées ; en `--dry-run`, elles restent lisibles `‹ID›`.
  */
 
+import { texteNu } from './fixtures/content';
 import type { SeedPlan, SeedStep } from './plan';
 
 /** Signature minimale de `fetch`, injectable pour les tests. */
@@ -31,6 +32,8 @@ export interface StepResult {
   readonly httpStatus?: number;
   readonly confluenceId?: string;
   readonly detail?: string;
+  /** Échec attendu d'une limite connue de l'API : ne fait pas échouer le semis. */
+  readonly documented?: boolean;
 }
 
 export interface SeedReport {
@@ -73,25 +76,53 @@ function fullUrl(opts: SeedOptions, path: string): string {
   return `${opts.baseUrl.replace(/\/+$/, '')}${opts.apiPrefix}${path}`;
 }
 
+/** Identifiant Confluence normalisé en chaîne (`undefined` si absent). */
+function objId(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  const texte = String(value);
+  return texte.length === 0 ? undefined : texte;
+}
+
+/** Valeur `body.storage` d'un contenu (étape envoyée ou réponse relue). */
+function corpsStorage(brut: unknown): string {
+  const obj = (brut ?? {}) as JsonObj;
+  const body = (obj.body ?? {}) as JsonObj;
+  const storage = (body.storage ?? {}) as JsonObj;
+  return storage.value === undefined ? '' : String(storage.value);
+}
+
+/** Numéro de version courant d'un contenu relu avec `expand=version`. */
+function versionCourante(obj: JsonObj): number {
+  const version = (obj.version ?? {}) as JsonObj;
+  return typeof version.number === 'number' ? version.number : 0;
+}
+
 /** Extrait l'identifiant Confluence d'une réponse de lookup, selon la nature. */
 function matchEntity(step: SeedStep, json: unknown): string | undefined {
   if (json === null || typeof json !== 'object') return undefined;
   const obj = json as JsonObj;
-  if (step.kind === 'space') return (obj.id as string | undefined) ?? (obj.key as string | undefined);
+  if (step.kind === 'space') return objId(obj.id) ?? objId(obj.key);
+  if (step.kind === 'update') {
+    // Une mise à jour est réputée appliquée dès que la version cible est atteinte.
+    const id = objId(obj.id);
+    if (id === undefined) return undefined;
+    return versionCourante(obj) >= (step.minVersion ?? 1) ? id : undefined;
+  }
   const results = obj.results as JsonObj[] | undefined;
   if (!Array.isArray(results) || results.length === 0) return undefined;
   if (step.kind === 'comment') {
-    const wanted = ((step.body as JsonObj)?.body as JsonObj)?.storage as JsonObj | undefined;
-    const found = results.find((r) => ((r.body as JsonObj)?.storage as JsonObj)?.value === wanted?.value);
-    return found?.id as string | undefined;
+    // Confluence réécrit le corps envoyé (accents → entités) : comparaison en texte nu.
+    const wanted = texteNu(corpsStorage(step.body));
+    const found = results.find((r) => texteNu(corpsStorage(r)) === wanted);
+    return found === undefined ? undefined : objId(found.id);
   }
   if (step.kind === 'attachment') {
     const filename = (step.body as JsonObj)?.filename;
     const found = results.find((r) => r.title === filename);
-    return found?.id as string | undefined;
+    return found === undefined ? undefined : objId(found.id);
   }
   const first = results[0] as JsonObj;
-  return (first.templateId as string | undefined) ?? (first.id as string | undefined);
+  return objId(first.templateId) ?? objId(first.id);
 }
 
 /** Lookup GET : renvoie l'identifiant existant, ou `undefined` s'il faut créer. */
@@ -117,6 +148,8 @@ function buildInit(step: SeedStep, registry: ReadonlyMap<string, string>, opts: 
   const headers = authHeaders(opts) as JsonObj;
   if (step.kind === 'attachment') {
     const att = step.body as JsonObj;
+    // Sans cet en-tête, le filtre XSRF de Confluence répond 403 « XSRF check failed ».
+    headers['X-Atlassian-Token'] = 'nocheck';
     const form = new FormData();
     form.append('file', new Blob([String(att.content)], { type: String(att.mimeType) }), String(att.filename));
     form.append('comment', 'SYNTHÉTIQUE — démo Placard');
@@ -125,6 +158,24 @@ function buildInit(step: SeedStep, registry: ReadonlyMap<string, string>, opts: 
   headers['Content-Type'] = 'application/json';
   const body = step.body === undefined ? undefined : JSON.stringify(resolveBodyRefs(step.body, registry));
   return { method: step.method, headers: headers as HeadersInit, ...(body === undefined ? {} : { body }) };
+}
+
+/** Messages de conflit qui signifient « l'entité existe déjà ». */
+const CONFLIT_DEJA_PRESENT = /already exists|already used|Version must be incremented/i;
+
+/** Un 400/409 portant l'un de ces messages = entité déjà présente (idempotence). */
+function estDejaPresent(status: number, detail: string): boolean {
+  return (status === 400 || status === 409) && CONFLIT_DEJA_PRESENT.test(detail);
+}
+
+/** Identifiant renvoyé par une création : `id`, `key`, ou celui du premier résultat. */
+function idDeCreation(json: JsonObj | undefined): string | undefined {
+  if (json === undefined) return undefined;
+  const direct = objId(json.id) ?? objId(json.key);
+  if (direct !== undefined) return direct;
+  const results = json.results as JsonObj[] | undefined;
+  if (!Array.isArray(results) || results.length === 0) return undefined;
+  return objId((results[0] as JsonObj).id);
 }
 
 /** Exécute une étape : idempotence puis requête ; ne lève jamais. */
@@ -144,20 +195,28 @@ async function executeStep(
   const url = fullUrl(opts, resolveRefs(step.path, registry));
   try {
     const res = await fetchImpl(url, buildInit(step, registry, opts));
-    if (!res.ok) {
-      const detail = (await res.text().catch(() => '')).slice(0, 200);
-      log(`échec ${step.id} (HTTP ${res.status})${step.note ? ` — ${step.note}` : ''}`);
-      return { id: step.id, status: 'failed', httpStatus: res.status, detail };
-    }
+    if (!res.ok) return resultatEchec(step, res, log);
     const json = (await res.json().catch(() => undefined)) as JsonObj | undefined;
-    const id = json === undefined ? undefined : String((json.id as string | number) ?? (json.key as string) ?? '');
-    if (id !== undefined && id.length > 0) registry.set(step.id, id);
+    const id = idDeCreation(json);
+    if (id !== undefined) registry.set(step.id, id);
     log(`ok    ${step.id}`);
-    return { id: step.id, status: 'created', ...(id ? { confluenceId: id } : {}) };
+    return { id: step.id, status: 'created', ...(id === undefined ? {} : { confluenceId: id }) };
   } catch (err) {
     log(`erreur ${step.id}: ${String(err)}`);
-    return { id: step.id, status: 'failed', detail: String(err) };
+    return { id: step.id, status: 'failed', detail: String(err), documented: step.documented === true };
   }
+}
+
+/** Traduit une réponse non-OK : conflit « déjà présent », échec documenté ou échec. */
+async function resultatEchec(step: SeedStep, res: Response, log: Logger): Promise<StepResult> {
+  const brut = (await res.text().catch(() => '')).slice(0, 600);
+  if (step.conflictMeansPresent === true && estDejaPresent(res.status, brut)) {
+    log(`skip  ${step.id} (déjà présent — HTTP ${res.status})`);
+    return { id: step.id, status: 'skipped', httpStatus: res.status, detail: brut.slice(0, 200) };
+  }
+  const documented = step.documented === true;
+  log(`${documented ? 'échec documenté' : 'échec'} ${step.id} (HTTP ${res.status})${step.note ? ` — ${step.note}` : ''}`);
+  return { id: step.id, status: 'failed', httpStatus: res.status, detail: brut.slice(0, 200), documented };
 }
 
 /** Applique tout le plan, dans l'ordre ; renvoie un rapport par étape. */
@@ -180,7 +239,8 @@ export function renderPlan(plan: SeedPlan, opts: SeedOptions): readonly string[]
   const base = `${opts.baseUrl.replace(/\/+$/, '')}${opts.apiPrefix}`;
   return plan.steps.map((step) => {
     const url = `${base}${renderRefs(step.path)}`;
-    const ligne = `${step.method.padEnd(4)} ${url}  [${step.id}] (${step.kind})`;
+    const marque = step.documented === true ? ' [échec documenté]' : '';
+    const ligne = `${step.method.padEnd(4)} ${url}  [${step.id}] (${step.kind})${marque}`;
     return step.note === undefined ? ligne : `${ligne} — ${step.note}`;
   });
 }
