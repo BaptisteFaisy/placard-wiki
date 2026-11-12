@@ -6,7 +6,7 @@ Fireworks du dépôt rendait HTTP 412. Les noms d'environnement génériques
 (`MODEL_API_KEY`, `MODEL_API_URL`, `MODEL_NAME`) ont la priorité sur les noms
 historiques `FIREWORKS_*`, eux-mêmes prioritaires sur les défauts du code.
 
-Lance : python3 test_provider.py (depuis .github/fireworks/).
+Lance : python3 test_provider.py (depuis .github/hermes/).
 """
 import os
 import unittest
@@ -92,10 +92,10 @@ class ChargementSansFichierTest(unittest.TestCase):
         exec(compile(source, "fournisseur.py", "exec"), module.__dict__)
         self.assertNotIn("__file__", module.__dict__)
         racine = module._racine_module()
-        self.assertTrue(racine.endswith(os.path.join(".github", "fireworks")))
+        self.assertTrue(racine.endswith(os.path.join(".github", "hermes")))
         # Depuis la racine du dépôt (cas du balayeur), le chemin existe bien.
         depot = os.path.abspath(os.path.join(ici, "..", ".."))
-        self.assertTrue(os.path.isdir(os.path.join(depot, ".github", "fireworks")))
+        self.assertTrue(os.path.isdir(os.path.join(depot, ".github", "hermes")))
 
     def test_racine_avec_fichier(self):
         import fournisseur

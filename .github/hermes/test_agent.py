@@ -76,7 +76,7 @@ def _charger(nom):
     except ImportError:
         pass
     try:
-        proc = subprocess.run(["git", "show", "origin/main:.github/fireworks/"
+        proc = subprocess.run(["git", "show", "origin/main:.github/hermes/"
                                "%s.py" % nom], capture_output=True, text=True,
                               timeout=60)
     except (OSError, subprocess.SubprocessError):

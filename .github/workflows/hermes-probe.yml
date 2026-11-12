@@ -1,0 +1,74 @@
+name: hermes-probe
+
+# Sonde vivante de la jambe modèle des agents Hermes (`.github/hermes/`).
+#
+# Pourquoi ce workflow existe : le résolveur de conflits, l'agent de périmètre et
+# l'agent de test dépendent d'un fournisseur externe (InferHub, `combo/cheap`).
+# Quand la clé expire, que le quota tombe ou que le modèle est retiré, ces agents
+# se taisent et les conflits reviennent à un humain — sans aucun signal. Ici, un
+# run rouge dit « la jambe ne répond plus » avant qu'une PR ne pourrisse.
+#
+# Deux étapes, aucune écriture sur le dépôt :
+#   1. selftests hors ligne (aucun réseau, aucune clé) — les mêmes que le job `ci`,
+#      plus le `--selftest` de la sonde ;
+#   2. sonde vivante : une invite triviale au fournisseur, verdict binaire
+#      (`python3 .github/hermes/sonde.py`). La clé arrive par l'environnement du
+#      job et n'est jamais imprimée (la sonde n'affiche qu'un aperçu masqué).
+#
+# Déclenchement : à la demande (après un changement de clé, de modèle ou de
+# fournisseur) et une fois par semaine, pour que l'absence de nouvelle ne passe
+# pas pour une bonne nouvelle. Ce n'est PAS un check requis de la file de merge :
+# une sonde rouge ne doit jamais bloquer une PR, elle prévient.
+#
+# Budget : règle user, 5 minutes maximum par job (la sonde met ~3 s, les
+# selftests quelques secondes).
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '25 6 * * 1' # lundi 06:25 UTC — hors des pics de la file de merge
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hermes-probe
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: hermes-probe
+    runs-on: [self-hosted, linux, x64, placard-wiki-worker]
+    timeout-minutes: 5
+    env:
+      # Noms génériques : ce sont ceux que lit `fournisseur.provider_settings()`,
+      # donc exactement les réglages des agents en situation réelle.
+      MODEL_API_KEY: ${{ secrets.INFERHUB_API_KEY }}
+      MODEL_NAME: ${{ vars.MODEL_NAME }}
+      MODEL_API_URL: ${{ vars.MODEL_API_URL }}
+    steps:
+      - name: Checkout (superficiel)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Selftests hors ligne (aucun réseau, aucune clé)
+        run: |
+          set -euo pipefail
+          python3 .github/hermes/sonde.py --selftest
+          python3 .github/hermes/test_provider.py
+          python3 .github/hermes/test_a2a.py
+          python3 .github/hermes/test_conflict_agent.py
+          python3 .github/hermes/test_quota.py
+          python3 .github/hermes/test_union_journal.py
+          python3 .github/hermes/test_scope_agent.py
+
+      - name: Sonde vivante du fournisseur (InferHub)
+        run: |
+          set -euo pipefail
+          if [ -z "${MODEL_API_KEY:-}" ]; then
+            echo "::error::secret INFERHUB_API_KEY absent : la jambe modèle des agents Hermes est muette (les conflits retomberont sur un humain)"
+            exit 3
+          fi
+          python3 .github/hermes/sonde.py

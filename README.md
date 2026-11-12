@@ -75,11 +75,28 @@ lignes, aucune valeur brute de secret nulle part (les tests utilisent les
 valeurs factices de `@placard/core`), verdict CI en 5 minutes maximum.
 Voir `CONTRIBUTING.md`.
 
+## File de merge et résolution de conflits (Hermes)
+
+Le merge est piloté par Mergify (file, squash, une PR = un commit) et la seule
+porte est la CI verte (`ci`, `ci-budget`, `couche0`). Une PR en **conflit** ne
+reste pas bloquée : le balayeur `pr-auto-merge` saisit **Hermes**
+(`.github/hermes/`), qui résout le conflit hunk par hunk avec sa jambe modèle
+**InferHub** (`combo/cheap`, repli A2A vers le daemon ZeroClaw du runner),
+valide avec la toolchain du dépôt, et pousse sur la branche de la PR en
+`--force-with-lease`. Jamais de merge par l'agent, jamais de push sur `main`,
+jamais d'échec silencieux : une résolution qui ne compile pas n'est pas poussée
+et un humain est étiqueté.
+
+Vérifier la jambe modèle : `python3 .github/hermes/sonde.py --selftest`
+(hors ligne) puis `python3 .github/hermes/sonde.py` (sonde vivante, aucun secret
+imprimé) — ou le workflow `hermes-probe`. Détail : [`docs/HERMES.md`](docs/HERMES.md).
+
 ## Documentation
 
 - `docs/ARCHITECTURE.md` — chaînes de traitement, limites Forge, réemploi de `placard`
 - `docs/VALIDATION-22.md` — les 9 points à valider par un prototype sur un vrai site
 - `docs/RECETTE-25.md` — la recette du cahier des charges, cas par cas
+- `docs/HERMES.md` — le système de résolution de conflits, sa jambe InferHub et ses garde-fous
 - `docs/JUGES.md` — comment tester en 10 minutes (espace de démo, MCP, Rovo)
 
 ## Licence

@@ -2,10 +2,11 @@
 """Tests ciblés de scope_agent.py — bibliothèque standard uniquement.
 
 Lance : python3 -m unittest test_scope_agent -v
-(depuis .github/fireworks/).
+(depuis .github/hermes/).
 """
 import importlib.util
 import os
+import sys
 import unittest
 from unittest import mock
 
@@ -229,7 +230,7 @@ class RelanceTest(unittest.TestCase):
                 mock.patch.object(scope_agent, "contexte",
                                   return_value=("Corps sans scope.", fichiers,
                                                 ["app/A.kt", "app/B.kt"])), \
-                mock.patch.object(scope_agent, "fw_complete", faux_complete), \
+                mock.patch.object(scope_agent, "modele_complete", faux_complete), \
                 mock.patch.object(scope_agent, "ecrire_corps",
                                   side_effect=lambda r, p, c: ecrits.append(c)), \
                 mock.patch.object(scope_agent, "rendre_compte"):
@@ -262,8 +263,9 @@ class InvocationSweepTest(unittest.TestCase):
     Non-régression v27 (31/10) : l'édition du corps avec le token de
     l'installation ne déclenche aucun workflow (anti-boucle GitHub), donc
     `couche0` ne rejugeait jamais le corps corrigé et la PR restait BLOCKED
-    sur un verdict périmé (#688). Le sweep invoque `scope_agent` via
-    `fw-scope.py` : cette invocation doit porter `GH_TOKEN="$GH_ECRITURE"`.
+    sur un verdict périmé (#688). Le sweep extrait les modules Hermes
+    d'`origin/main` dans `/tmp/hermes` puis invoque `scope_agent.py` : cette
+    invocation doit porter `GH_TOKEN="$GH_ECRITURE"`.
     """
 
     SWEEP = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -273,9 +275,9 @@ class InvocationSweepTest(unittest.TestCase):
         with open(self.SWEEP, encoding="utf-8") as fh:
             contenu = fh.read()
         invocations = [l for l in contenu.splitlines()
-                       if "fw-scope.py" in l and "python3" in l]
+                       if "scope_agent.py" in l and "python3" in l]
         self.assertTrue(invocations,
-                        "aucune invocation de fw-scope.py dans pr-auto-merge.yml")
+                        "aucune invocation de scope_agent.py dans pr-auto-merge.yml")
         for ligne in invocations:
             self.assertIn('GH_TOKEN="$GH_ECRITURE"', ligne,
                           "l'agent de périmètre doit écrire avec le PAT : %s"
@@ -288,6 +290,69 @@ class InvocationSweepTest(unittest.TestCase):
                       "le filet de relance couche0 a disparu du sweep")
         self.assertIn("automerge-scope-rerun", contenu,
                       "la marque de relance couche0 a disparu du sweep")
+
+
+class JambeInferHubTest(unittest.TestCase):
+    """La jambe modèle des agents Hermes est InferHub, et une seule source.
+
+    Non-régression : les réglages viennent de `fournisseur.provider_settings()`
+    (noms génériques `MODEL_*` prioritaires, historiques `FIREWORKS_*` en repli,
+    défauts InferHub `combo/cheap`). Un agent qui redéfinirait ses propres
+    défauts pourrait repartir sur un autre fournisseur sans que rien ne casse.
+    """
+
+    SWEEP = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         "..", "workflows", "pr-auto-merge.yml")
+    SANS_CLE = ("MODEL_API_KEY", "MODEL_NAME", "MODEL_API_URL",
+                "FIREWORKS_API_KEY", "FIREWORKS_MODEL", "FIREWORKS_BASE_URL",
+                "HERMES_AGENT_SCOPE", "FIREWORKS_AGENT_SCOPE")
+
+    def test_defauts_inferhub(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            for nom in self.SANS_CLE:
+                os.environ.pop(nom, None)
+            os.environ["MODEL_API_KEY"] = "cle"
+            cle, modele, url = scope_agent.verifier_reglages()
+        self.assertEqual(cle, "cle")
+        self.assertEqual(modele, "combo/cheap")
+        self.assertEqual(url, "https://api.inferhub.dev/v1/chat/completions")
+
+    def test_noms_historiques_en_repli(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            for nom in self.SANS_CLE:
+                os.environ.pop(nom, None)
+            os.environ["FIREWORKS_API_KEY"] = "historique"
+            cle, modele, _url = scope_agent.verifier_reglages()
+        self.assertEqual(cle, "historique")
+        self.assertEqual(modele, "combo/cheap")
+
+    def test_coupe_circuit_hermes(self):
+        with mock.patch.dict(os.environ, {"MODEL_API_KEY": "cle",
+                                          "HERMES_AGENT_SCOPE": "0"}):
+            with self.assertRaises(scope_agent.Skip):
+                scope_agent.verifier_reglages()
+
+    def test_sans_cle_rien_ne_part(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            for nom in self.SANS_CLE:
+                os.environ.pop(nom, None)
+            with self.assertRaises(scope_agent.Skip):
+                scope_agent.verifier_reglages()
+
+    def test_sweep_cable_sur_inferhub(self):
+        with open(self.SWEEP, encoding="utf-8") as fh:
+            contenu = fh.read()
+        self.assertIn("MODEL_API_KEY: ${{ secrets.INFERHUB_API_KEY }}", contenu,
+                      "le balayeur ne passe plus la clé InferHub aux agents")
+        self.assertNotIn(".github/fireworks", contenu,
+                         "un chemin .github/fireworks survit dans le balayeur")
+
+    def test_sonde_masque_sans_fuite(self):
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import sonde
+        self.assertEqual(sonde.main(["--selftest"]), 0)
+        for valeur in ("cle-tres-longue-de-sonde-1234", "x"):
+            self.assertNotIn(valeur, sonde.masquer(valeur))
 
 
 if __name__ == "__main__":

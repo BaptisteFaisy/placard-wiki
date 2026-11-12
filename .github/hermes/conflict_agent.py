@@ -2,8 +2,9 @@
 """Agent de conflit pour la file pr-auto-merge (fournisseur InferHub par défaut).
 
 Appelé par le sweep DANS son clone quand un rebase bute sur un conflit : il
-fait résoudre chaque conflit élémentaire par un modèle (InferHub `combo/cheap`
-par défaut, Fireworks accepté en repli historique), recopie le
+fait résoudre chaque conflit élémentaire par un modèle (InferHub `combo/cheap` ;
+les noms d'environnement historiques `FIREWORKS_*` restent acceptés en repli),
+recopie le
 reste du fichier intact (jamais de réécriture complète : un gros fichier serait
 tronqué), boucle sur les arrêts (commits vidés sautés), pousse et rend compte.
 `union_journal.py` réunit les journaux sans modèle ; `quota.py` borne les
@@ -36,7 +37,7 @@ def _charger(nom):
     except ImportError:
         pass
     try:
-        proc = subprocess.run(["git", "show", "origin/main:.github/fireworks/"
+        proc = subprocess.run(["git", "show", "origin/main:.github/hermes/"
                                "%s.py" % nom], capture_output=True, text=True,
                               timeout=60)
     except (OSError, subprocess.SubprocessError):
@@ -100,7 +101,7 @@ def sh(args, **kw):
 
 
 def log(message):
-    print("fireworks-agent: %s" % message, flush=True)
+    print("hermes-agent: %s" % message, flush=True)
 
 
 def pr_labels(repo, pr):
@@ -148,7 +149,7 @@ def unmerged_files():
     return [line for line in out.splitlines() if line]
 
 
-def fw_complete(api_url, key, model, messages):
+def modele_complete(api_url, key, model, messages):
     """Un appel chat/completions au fournisseur de modèle, rend le texte réponse."""
     payload = json.dumps({"model": model, "messages": messages,
                           "temperature": TEMPERATURE,
@@ -176,7 +177,7 @@ def completion(api_url, key, model, messages):
     quelle.
     """
     try:
-        return fw_complete(api_url, key, model, messages)
+        return modele_complete(api_url, key, model, messages)
     except AgentError as exc:
         if a2a is None:
             raise
@@ -257,8 +258,9 @@ Skip = quota.Saisine if quota else _SaisineLocale
 env_or = fournisseur.env_or  # une seule définition, chez le fournisseur
 def preflight(repo, pr, sha, dry_run, now):
     """Garde-fous et lecture des fichiers en conflit. Rend (clé, modèle, url, fichiers)."""
-    if os.environ.get("FIREWORKS_AGENT_RESOLVE", "1") == "0":
-        raise Skip("désactivé (FIREWORKS_AGENT_RESOLVE=0)")
+    if env_or("HERMES_AGENT_RESOLVE", "") == "0" \
+            or env_or("FIREWORKS_AGENT_RESOLVE", "1") == "0":
+        raise Skip("désactivé (HERMES_AGENT_RESOLVE=0)")
     key, model, api_url = provider_settings()
     if not key and not dry_run:
         raise Skip("pas de clé de modèle (MODEL_API_KEY ou FIREWORKS_API_KEY)")

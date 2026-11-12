@@ -77,21 +77,27 @@ def _racine_module():
     fichier = globals().get("__file__")
     if fichier:
         return os.path.dirname(os.path.abspath(fichier))
-    return os.path.join(os.getcwd(), ".github", "fireworks")
+    return os.path.join(os.getcwd(), ".github", "hermes")
 
 
 def _charger_a2a():
-    """Charge `.github/hermes/a2a.py` (repli local) sans dépendre du sys.path.
+    """Charge `a2a.py` (le repli ZeroClaw) sans dépendre du sys.path.
 
-    Deux chemins : le voisin dans l'arbre (exécution normale), sinon la copie
-    lue sur `origin/main` (le balayeur extrait ce script seul). Sans aucun des
-    deux, le repli est simplement indisponible.
+    Trois chemins, dans l'ordre : le voisin direct (depuis le renommage
+    `fireworks` → `hermes`, les deux modules sont dans le même dossier),
+    l'ancienne disposition `../hermes/a2a.py` (une branche antérieure au
+    renommage), sinon la copie lue sur `origin/main` — le cas du balayeur, qui
+    extrait les modules dans un dossier temporaire. Sans aucun des trois, le
+    repli est simplement indisponible : l'erreur d'origine du fournisseur
+    remonte, rien n'est poussé.
     """
-    chemin = os.path.join(_racine_module(), os.pardir, "hermes", "a2a.py")
-    if os.path.exists(chemin):
-        module = _charger_module(chemin)
-        if module is not None:
-            return module
+    racine = _racine_module()
+    for chemin in (os.path.join(racine, "a2a.py"),
+                   os.path.join(racine, os.pardir, "hermes", "a2a.py")):
+        if os.path.exists(chemin):
+            module = _charger_module(chemin)
+            if module is not None:
+                return module
     return _a2a_depuis_main()
 
 
@@ -105,7 +111,7 @@ def _charger(nom):
     except ImportError:
         pass
     try:
-        proc = subprocess.run(["git", "show", "origin/main:.github/fireworks/"
+        proc = subprocess.run(["git", "show", "origin/main:.github/hermes/"
                                "%s.py" % nom], capture_output=True, text=True,
                               timeout=60)
     except (OSError, subprocess.SubprocessError):
