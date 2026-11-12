@@ -28,6 +28,8 @@ import { computePageExposure } from './exposure';
 import { scoreFoyer } from './scoring';
 import { emptyAccumulator, scanPageInto } from './scan-page';
 import type { ScanAccumulator } from './scan-page';
+import { noteGite } from './scan-page';
+import type { GiteCoverageLine } from '../store/ports';
 
 /** Paramètres d'un balayage borné. */
 export interface SweepParams {
@@ -168,6 +170,29 @@ async function persistScans(ctx: ServiceContext, acc: ScanAccumulator): Promise<
   for (const record of acc.attachmentScans) await ctx.store.attachmentScans.put(record);
 }
 
+/**
+ * Persiste la couverture par gîte du jour (§6). Les gîtes 5 (modèles) et 7
+ * (description d'espace) ne passent pas par la passe de pages : ils restent
+ * déclarés « hors passe », jamais passés sous silence. Chaque gîte illisible
+ * porte la raison exacte du refus (scope manquant, chemin retiré).
+ */
+async function persistGiteCoverage(ctx: ServiceContext, acc: ScanAccumulator): Promise<void> {
+  const day = ctx.clock.now().slice(0, 10);
+  const MERGED: readonly string[] = ['modeles-de-page', 'description-espace'];
+  const lines: GiteCoverageLine[] = [...acc.gites.values()];
+  for (const gite of MERGED) {
+    if (!lines.some((l) => l.gite === gite)) {
+      lines.push({
+        gite,
+        scanned: 0,
+        skipped: 0,
+        reason: 'hors de la passe de pages (§6) : angle mort déclaré, pas un droit manquant',
+      });
+    }
+  }
+  for (const line of lines) await ctx.store.giteCoverage.put(line, day);
+}
+
 /** Met à jour le budget du jour (§14) — compteurs jamais masqués. */
 async function updateBudget(ctx: ServiceContext, acc: ScanAccumulator, pages: number, ms: number): Promise<void> {
   const day = ctx.clock.now().slice(0, 10);
@@ -201,6 +226,7 @@ export async function runSweep(ctx: ServiceContext, params: SweepParams): Promis
   const exposures = await computeExposures(ctx, acc);
   const foyersTouched = await finalizeFoyers(ctx, acc, exposures);
   await persistScans(ctx, acc);
+  await persistGiteCoverage(ctx, acc);
   const durationMs = Date.now() - t0;
   await updateBudget(ctx, acc, pageIds.length, durationMs);
   const runAt = ctx.clock.now();

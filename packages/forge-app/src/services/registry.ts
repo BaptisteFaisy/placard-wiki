@@ -148,7 +148,6 @@ export function declaresMissingRight(text: string): boolean {
 
 /** Une ligne de couverture par gîte : lus, non lus, et pourquoi (§14). */
 type GiteCoverage = CoverageReport['perGite'][number];
-
 /** Budget du jour — compteurs de la dernière passe, null si aucune passe. */
 function budgetOfDay(ctx: ServiceContext): Promise<ScanBudget | null> {
   return ctx.store.budget.get(ctx.clock.now().slice(0, 10));
@@ -213,13 +212,59 @@ async function classifyUnreadPages(ctx: ServiceContext): Promise<{ rights: strin
 }
 
 /**
+ * Gîtes 1, 2, 4 et 6 — la couverture réelle, lue dans la table technique
+ * `gite_coverage` que la passe remplit à chaque gîte. Un gîte jamais lu reste
+ * absent : la couverture **déclare** l'absence, elle ne la comble pas.
+ */
+async function measuredGites(ctx: ServiceContext): Promise<GiteCoverage[]> {
+  const day = ctx.clock.now().slice(0, 10);
+  const lines = await ctx.store.giteCoverage.list(day);
+  return lines.map((line) => ({
+    gite: line.gite,
+    scanned: line.scanned,
+    skipped: line.skipped,
+    ...(line.reason !== undefined ? { reason: line.reason } : {}),
+  }));
+}
+
+/**
+ * Fusionne les deux mesures d'un même gîte.
+ *
+ * La mesure du store (`page_scan`, `attachment_scan`) est plus fine — elle
+ * connaît les pages et les fichiers non lus, un par un ; la mesure de la
+ * passe (`gite_coverage`) connaît les gîtes que le store ne suit pas
+ * (commentaires, versions, titres). Quand les deux existent, la plus fine
+ * gagne sur les compteurs, et la raison la plus précise est conservée.
+ */
+function mergeGite(measured: GiteCoverage | undefined, stored: GiteCoverage): GiteCoverage {
+  if (measured === undefined) return stored;
+  return {
+    gite: measured.gite,
+    scanned: stored.scanned,
+    skipped: stored.skipped,
+    ...(stored.reason !== undefined ? { reason: stored.reason } : {}),
+    ...(measured.reason !== undefined ? { reason: measured.reason } : {}),
+  };
+}
+
+/**
  * Couverture (§19) : état réel du store, jamais des compteurs statiques.
  * « Pas de droit » est distingué de « pas de données » (§25.18), chaque pièce
  * jointe non lue porte sa raison (§25.17, PW-19) et les angles morts restent
  * déclarés même quand aucune passe n'a eu lieu.
+ *
+ * Les sept gîtes (§6) sont listés : chacun porte ses compteurs et, s'il a été
+ * illisible, la **raison exacte** du refus — scope manquant, chemin retiré —
+ * jamais un « 401 » nu.
  */
 export async function coverageReport(ctx: ServiceContext): Promise<CoverageReport> {
-  const perGite = [await pageGite(ctx), await attachmentGite(ctx)];
+  const measured = await measuredGites(ctx);
+  const stored: GiteCoverage[] = [await pageGite(ctx), await attachmentGite(ctx)];
+  const names = [...new Set([...measured.map((g) => g.gite), ...stored.map((g) => g.gite)])];
+  const perGite = names.map((name) => mergeGite(
+    measured.find((g) => g.gite === name),
+    stored.find((g) => g.gite === name) ?? { gite: name, scanned: 0, skipped: 0 },
+  ));
   const unreadPages = await classifyUnreadPages(ctx);
   const blindSpots = [...DECLARED_BLIND_SPOTS, ...unreadPages.blind];
   const missingRights = [GRAPH_RIGHTS_TO_VALIDATE, ...await graphMissingRights(ctx), ...unreadPages.rights];

@@ -100,6 +100,38 @@ describe('coverageReport — droit manquant ≠ « pas de données » (§25.18)'
   });
 });
 
+describe('coverageReport — couverture par gîte mesurée (§6)', () => {
+  it('une passe note chaque gîte lu, avec la raison exacte d\'un gîte illisible', async () => {
+    const ctx = demoContext();
+    await coverageAfterSweep(ctx, DEMO_PAGE);
+
+    const report = await coverageReport(ctx);
+    // Gîtes lus pendant la passe : corps, titres, commentaires, pièces jointes.
+    expect(gite(report, 'corps-de-page')?.scanned).toBeGreaterThan(0);
+    expect(gite(report, 'commentaires')).toBeDefined();
+    expect(gite(report, 'historique-de-versions')).toBeDefined();
+    // Gîtes hors passe : déclarés, jamais absents.
+    for (const name of ['modeles-de-page', 'description-espace']) {
+      expect(gite(report, name), name).toBeDefined();
+    }
+  });
+
+  it('un gîte illisible porte la raison (scope manquant), pas un 401 nu', async () => {
+    const ctx = makeTestContext({
+      confluence: {
+        ...createFixtureClient(loadFixtureData()),
+        // La lecture des commentaires échoue faute de droit : la raison doit
+        // être écrite, mesurée par la couverture, jamais réduite à « 401 ».
+        listComments: async () => { throw new Error('401 sur /wiki/.../child/comment : scope read:comment:confluence non accordé par l\'administrateur du site (droit manquant)'); },
+      },
+    });
+    await runSweep(ctx, { mode: 'on-demand', scope: DEMO_PAGE, maxPages: 1 });
+    const report = await coverageReport(ctx);
+    const comments = gite(report, 'commentaires');
+    expect(comments?.reason).toContain('scope read:comment:confluence non accordé');
+  });
+});
+
 describe('coverageReport — pièces jointes non lues et pourquoi (§25.17, PW-19)', () => {
   it('liste chaque pièce jointe non lue avec sa raison (trop volumineuse, binaire non textuel)', async () => {
     const report = await coverageAfterSweep(demoContext(), DEMO_PAGE);
