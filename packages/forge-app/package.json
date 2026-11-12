@@ -21,6 +21,7 @@
     "@placard-wiki/exposure": "workspace:*",
     "@placard-wiki/propagation": "workspace:*",
     "@placard-wiki/ritual": "workspace:*",
+    "@placard-wiki/surfaces": "workspace:*",
     "@placard-wiki/wiki-source": "workspace:*"
   },
   "devDependencies": {

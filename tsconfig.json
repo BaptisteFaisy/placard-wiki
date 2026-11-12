@@ -30,6 +30,7 @@
       "@placard-wiki/exposure": ["packages/exposure/src/index.ts"],
       "@placard-wiki/propagation": ["packages/propagation/src/index.ts"],
       "@placard-wiki/ritual": ["packages/ritual/src/index.ts"],
+      "@placard-wiki/surfaces": ["packages/surfaces/src/index.ts"],
       "@placard-wiki/forge-app": ["packages/forge-app/src/index.ts"],
       "@placard-wiki/demo-space": ["packages/demo-space/src/index.ts"]
     }

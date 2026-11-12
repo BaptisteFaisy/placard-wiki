@@ -111,6 +111,9 @@ importers:
       '@placard-wiki/ritual':
         specifier: workspace:*
         version: link:../ritual
+      '@placard-wiki/surfaces':
+        specifier: workspace:*
+        version: link:../surfaces
       '@placard-wiki/wiki-source':
         specifier: workspace:*
         version: link:../wiki-source
@@ -148,6 +151,12 @@ importers:
       '@placard/ritual':
         specifier: workspace:*
         version: link:../../vendor/placard/packages/ritual
+
+  packages/surfaces:
+    dependencies:
+      '@placard/core':
+        specifier: workspace:*
+        version: link:../../vendor/placard/packages/core
 
   packages/wiki-source:
     dependencies:
