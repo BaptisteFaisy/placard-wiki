@@ -131,7 +131,9 @@ export const DECLARED_BLIND_SPOTS: readonly string[] = [
 
 /** Droit du graphe à valider (§12, §22) — déclaré même avant toute résolution. */
 export const GRAPH_RIGHTS_TO_VALIDATE =
-  'read:graph:document / read:graph:project : résolution de propriétaire par le graphe à valider (§12, §22).';
+  'read:graph:page:confluence, read:graph:project:atlassian, '
+  + 'read:graph:space:confluence : résolution de propriétaire par le graphe, '
+  + 'un droit par type d’objet (§12, §22).';
 
 /** Marques textuelles d'un droit manquant (§19) — jamais « pas de données ». */
 const MISSING_RIGHT_MARKERS: readonly string[] = [
