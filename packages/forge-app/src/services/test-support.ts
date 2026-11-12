@@ -17,6 +17,8 @@ import type { ClockPort, IdPort, StoragePort } from '@placard-wiki/ritual';
 
 import { createMemoryStore } from '../store/memory-store';
 import type { ForgeStore } from '../store/ports';
+import type { Foyer } from '@placard-wiki/domain';
+import { runSweep } from './sweep';
 import type {
   AccessPort, ActorContext, JiraPort, OwnerSourcePort, RealtimePort,
   ServiceContext, TeamworkGraphPort,
@@ -191,4 +193,53 @@ export function makeTestContext(options: TestContextOptions = {}): ServiceContex
     access: testAccess(),
     actor: () => actor,
   };
+}
+
+/** Identifiant de la page « multi-gîtes » de la fixture de propagation. */
+export const MULTI_PAGE_ID = '2001';
+
+/** Identifiant du modèle de page (gîte 5) de la fixture de propagation. */
+export const TEMPLATE_ID = 'tpl-demo-1';
+
+/**
+ * Client Confluence factice : la **même** clé factice vit dans cinq gîtes
+ * (corps de page, version historique, commentaire, pièce jointe, modèle) —
+ * un seul foyer, cinq emplacements (§11). Aucune valeur n'est écrite dans le
+ * dépôt : la clé est fabriquée à l'exécution (PLA-N-09).
+ */
+export function multiGiteFixtureClient(): ConfluenceClient {
+  return createFixtureClient({
+    pages: [{
+      id: MULTI_PAGE_ID,
+      title: 'Runbook multi-gîtes',
+      spaceKey: SPACE_KEY,
+      versionNumber: 3,
+      bodyStorage: `<p>export AWS_ACCESS_KEY_ID=${FAKE_CLOUD_KEY}</p>`,
+      labels: [],
+      lastModifiedAt: '2026-11-09T08:00:00.000Z',
+    }],
+    versions: {
+      [MULTI_PAGE_ID]: [{ number: 2, title: 'Version 2', bodyStorage: `<p>clé d'hier ${FAKE_CLOUD_KEY}</p>` }],
+    },
+    comments: {
+      [MULTI_PAGE_ID]: [{ id: 'c-1', bodyStorage: `la clé de staging : ${FAKE_CLOUD_KEY}`, versionNumber: 1 }],
+    },
+    attachments: {
+      [MULTI_PAGE_ID]: [{ id: 'a-1', filename: 'notes.env', mediaType: 'text/plain', sizeBytes: 64 }],
+    },
+    attachmentContent: { 'a-1': { text: `AWS_ACCESS_KEY_ID=${FAKE_CLOUD_KEY}` } },
+    templates: [{ id: TEMPLATE_ID, title: 'Modèle runbook', spaceKey: SPACE_KEY, bodyStorage: `<p>${FAKE_CLOUD_KEY}</p>` }],
+  });
+}
+
+/** Balaye une page et renvoie le foyer ouvert — helper partagé des tests. */
+export async function seedFoyerBySweep(
+  ctx: ServiceContext,
+  pageId: string = PAGE_ID,
+): Promise<Foyer> {
+  await runSweep(ctx, { mode: 'on-demand', scope: pageId, maxPages: 1 });
+  const foyers = await ctx.store.listFoyers({ limit: 10 });
+  const foyer = foyers[0];
+  if (foyer === undefined) throw new Error('test : aucun foyer produit');
+  return foyer;
 }
