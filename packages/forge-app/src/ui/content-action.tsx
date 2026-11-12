@@ -19,6 +19,7 @@ import { useI18n, type Lang } from './i18n';
 import { useRealtimeBanner } from './realtime';
 import { EmptyNotice, Loading, ScoreLozenge, StateLozenge } from './widgets';
 import { useEffect, useState } from 'react';
+import { mountScreen } from './mount';
 
 /** Charge les foyers d'une page (registre filtré sur le pageId courant). */
 function usePageFoyers(pageId: string): { rows: RegistryRow[] | null; note: string | null } {
@@ -154,3 +155,7 @@ export default function ContentAction(): JSX.Element {
     </Stack>
   );
 }
+
+// Point d'entrée de la ressource `placard-content-action` (forme UI Kit
+// actuelle) : Forge importe ce module et attend qu'il demande son rendu.
+mountScreen(<ContentAction />);
