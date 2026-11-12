@@ -118,6 +118,23 @@ export interface BudgetRepo {
   put(budget: ScanBudget): Promise<void>;
 }
 
+/** Une ligne de couverture par gîte (§6) — lus, non lus, et la raison. */
+export interface GiteCoverageLine {
+  gite: string;
+  scanned: number;
+  skipped: number;
+  /** Raison du refus (scope manquant, chemin retiré…) si le gîte est illisible. */
+  reason?: string;
+}
+
+/** Dépôt de couverture par gîte (§6) — persiste ce qu'une passe a vraiment lu. */
+export interface GiteCoverageRepo {
+  get(day: string, gite: string): Promise<GiteCoverageLine | null>;
+  put(line: GiteCoverageLine, day: string): Promise<void>;
+  /** Toutes les lignes d'un jour, triées par gîte. */
+  list(day: string): Promise<GiteCoverageLine[]>;
+}
+
 /** Dépôt de réglages par espace (PW-24) — non persisté dans SQL (limite honnête). */
 export interface SettingsRepo {
   get(spaceKey: string): Promise<SpaceSettings>;
@@ -137,6 +154,7 @@ export interface ForgeStore {
   certificates: CertificateRepo;
   cursors: SweepCursorRepo;
   budget: BudgetRepo;
+  giteCoverage: GiteCoverageRepo;
   settings: SettingsRepo;
   /**
    * Écrit un foyer complet : ligne `finding` + lignes `location`. Calcule aussi
