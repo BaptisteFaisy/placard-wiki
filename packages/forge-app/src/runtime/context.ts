@@ -259,18 +259,23 @@ function createAccess(client: ConfluenceClient, actor: () => ActorContext): Acce
 
 /**
  * Sonde les points d'accès Confluence depuis l'identité de l'app et renvoie
- * le statut HTTP de chacun. Diagnostic mesuré (12 novembre 2026) : la
- * recherche CQL répond 200 alors que la lecture d'une page répond 401 — il
- * faut donc savoir quel chemin fonctionne avant de balayer.
+ * le statut HTTP de chacun, **avec le corps de la réponse** (c'est lui qui
+ * dit si le refus est un droit manquant ou un chemin inconnu).
+ *
+ * Diagnostic mesuré (12 novembre 2026) : la recherche CQL répond 200 alors
+ * que la lecture d'une page répond 401 — il faut donc savoir quel chemin
+ * fonctionne avant de balayer. La table `runtime/confluence-access.ts` relie
+ * chaque chemin au scope qu'il exige et formule la raison précise du refus.
  */
 export async function probeConfluence(
   paths: readonly string[],
-): Promise<Array<{ path: string; status: number; error?: string }>> {
-  const out: Array<{ path: string; status: number; error?: string }> = [];
+): Promise<Array<{ path: string; status: number; error?: string; body?: string }>> {
+  const out: Array<{ path: string; status: number; error?: string; body?: string }> = [];
   for (const path of paths) {
     try {
       const response = await asApp().requestConfluence(assumeTrustedRoute(path));
-      out.push({ path, status: response.status });
+      const body = await response.text().catch(() => '');
+      out.push({ path, status: response.status, body: body.slice(0, 300) });
     } catch (error) {
       out.push({ path, status: -1, error: String(error) });
     }

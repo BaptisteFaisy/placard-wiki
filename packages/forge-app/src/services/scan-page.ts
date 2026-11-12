@@ -25,6 +25,7 @@ import type {
 import type { WikiDetection, WikiPageMeta } from '@placard-wiki/propagation';
 
 import type { ServiceContext } from './ports';
+import type { GiteCoverageLine } from '../store/ports';
 
 /** Version déclarée du moteur de détection (colonne `detectors_version`). */
 export const DETECTORS_VERSION = 'wiki-detectors-1';
@@ -44,6 +45,12 @@ export interface ScanAccumulator {
   pageSpace: Map<string, string>;
   attachmentsRead: number;
   attachmentsSkipped: number;
+  /**
+   * Couverture par gîte (§6) : ce que la passe a **réellement** lu.
+   * Clé = nom de gîte ; la valeur porte les compteurs et, si le gîte a été
+   * illisible, la raison exacte (scope manquant, chemin retiré…).
+   */
+  gites: Map<string, GiteCoverageLine>;
 }
 
 export function emptyAccumulator(): ScanAccumulator {
@@ -51,7 +58,24 @@ export function emptyAccumulator(): ScanAccumulator {
     detections: [], pages: [], pageScans: [], attachmentScans: [],
     blindSpots: [], testFingerprints: new Set(), knownFakeFingerprints: new Set(),
     pageSpace: new Map(), attachmentsRead: 0, attachmentsSkipped: 0,
+    gites: new Map(),
   };
+}
+
+/** Note la lecture (ou l'échec) d'un gîte dans l'accumulateur de la passe. */
+export function noteGite(
+  acc: ScanAccumulator,
+  gite: string,
+  scanned: number,
+  reason?: string,
+): void {
+  const previous = acc.gites.get(gite);
+  acc.gites.set(gite, {
+    gite,
+    scanned: (previous?.scanned ?? 0) + scanned,
+    skipped: previous?.skipped ?? 0,
+    ...(reason !== undefined ? { reason } : previous?.reason !== undefined ? { reason: previous.reason } : {}),
+  });
 }
 
 /** ScannedItem (wiki-source) → ScanItem (detectors). */
@@ -128,7 +152,7 @@ function recordAttachment(acc: ScanAccumulator, item: ScannedItem, findingsCount
 }
 
 /** Scanne un élément : détections + oracle + couverture pièce jointe. */
-async function scanOneItem(
+export async function scanOneItem(
   ctx: ServiceContext,
   item: ScannedItem,
   acc: ScanAccumulator,
@@ -167,25 +191,31 @@ const PAGE_GITES: readonly GiteReader[] = [
 
 /**
  * Lit les gîtes d'une page **un par un**. Un gîte hors de portée (droits
- * manquants, 401) est déclaré en angle mort ; il ne fait pas perdre la page
- * entière — mesuré le 12 novembre 2026 : l'identité de l'app n'a accès qu'à
- * la recherche, pas aux points d'accès directs de contenu.
+ * manquants, chemin retiré) est déclaré en angle mort ; il ne fait pas perdre
+ * la page entière — mesuré le 12 novembre 2026 : l'identité de l'app n'a
+ * accès qu'à la recherche, pas aux points d'accès directs de contenu.
  *
  * Renvoie aussi les échecs : c'est au tour de la page de décider si l'échec
  * est un DROIT manquant (page entière illisible) ou un angle mort partiel.
+ * Chaque gîte est noté dans l'accumulateur : la couverture mesure ce qui a
+ * été **lu**, pas ce qui était espéré.
  */
 async function readPageGites(
   ctx: ServiceContext,
   pageId: string,
+  acc: ScanAccumulator,
 ): Promise<{ items: ScannedItem[]; failures: string[] }> {
   const items: ScannedItem[] = [];
   const failures: string[] = [];
   for (const gite of PAGE_GITES) {
     try {
-      items.push(...await gite.read(ctx.confluence, pageId));
+      const read = await gite.read(ctx.confluence, pageId);
+      items.push(...read);
+      noteGite(acc, gite.gite, read.length);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       failures.push(`« ${gite.gite} » : ${reason}`);
+      noteGite(acc, gite.gite, 0, reason);
     }
   }
   return { items, failures };
@@ -203,7 +233,7 @@ export async function scanPageInto(
   disabled: readonly WikiFamily[],
 ): Promise<void> {
   const detectedAt = ctx.clock.now();
-  const { items, failures } = await readPageGites(ctx, pageId);
+  const { items, failures } = await readPageGites(ctx, pageId, acc);
   if (items.length === 0) {
     // Page entièrement illisible : c'est un **droit manquant** tant que
     // l'inverse n'est pas prouvé (§25.18). « Pas de données » serait un
