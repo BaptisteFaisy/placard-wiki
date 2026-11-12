@@ -5,11 +5,13 @@
 # chacun leur `action` et leur `function`, pour qu'un agent puisse les appeler
 # un par un (et qu'une automatisation n'appelle que des verbes GET).
 #
-# `app.id` est ajouté par `forge create` — voir docs/VALIDATION-22.md.
+# `app.id` enregistré le 12 novembre 2026 (Developer Space « laddition »,
+# site one-atlas-cndz.atlassian.net) via `forge create` — voir docs/VALIDATION-22.md.
 # Les noms d'événements, de scopes et de modules marqués « à valider » passent
 # par `forge lint` et le prototype de la semaine 1 avant d'être tenus pour vrais.
 
 app:
+  id: ari:cloud:ecosystem::app/dc47d23f-e4cd-4681-bb64-14ac02ea1c98
   runtime:
     name: nodejs22.x
   licensing:
@@ -99,9 +101,11 @@ modules:
 
   # Un seul déclencheur à 5 minutes est autorisé par la plateforme (§19) :
   # l'incrémental. La passe complète est hebdomadaire.
+  # Valeurs d'intervalle valides (schéma @forge/manifest, vérifié par forge lint
+  # le 12 novembre 2026) : fiveMinute, hour, day, week.
   scheduledTrigger:
     - key: pw-incremental
-      interval: cron:*/5 * * * ?
+      interval: fiveMinute
       function: incremental-sweep
     - key: pw-full-weekly
       interval: week
@@ -119,42 +123,39 @@ modules:
         - claude
 
   # ---------------------------------------------------------------------- écrans
+  # Formes validées par `forge lint` le 12 novembre 2026 : un écran Confluence
+  # UI Kit = {key, title, route?, function} — pas de render/resource/resolver.
+  # `confluence:spaceSettingsPage` et `confluence:macro` N'EXISTENT PAS : les
+  # vrais modules sont `confluence:spaceSettings` et `confluence:customContent`.
   # Le bâtiment, le registre, le budget, l'adoption, le certificat (§18).
   confluence:globalPage:
     - key: placard-global
       title: Placard
-      render: native
-      resource: global-page
-      resolver:
-        function: resolver
+      route: placard
+      function: resolver
 
   # Réglages par espace : familles, seuils, exclusions, politique de purge (§18).
-  confluence:spaceSettingsPage:
+  confluence:spaceSettings:
     - key: placard-space-settings
       title: Placard — réglages de l'espace
-      render: native
-      resource: space-settings
-      resolver:
-        function: resolver
+      route: placard-settings
+      function: resolver
 
   # Encart sur la page : « 2 foyers, danger max 74 » (§18).
   confluence:contentAction:
     - key: placard-content-action
       title: Foyers sur cette page
-      render: native
-      resource: content-action
-      resolver:
-        function: resolver
+      function: resolver
 
-  # Certificat et état d'un foyer dans une page (§18).
-  confluence:macro:
+  # Certificat et état d'un foyer dans une page (§18) — via customContent
+  # (le module macro n'existe pas dans le schéma du 12 novembre 2026).
+  confluence:customContent:
     - key: placard-certificate
       title: Placard — certificat
       description: Affiche le certificat daté d'un espace, ou l'état d'un foyer.
-      render: native
-      resource: certificate-macro
-      resolver:
-        function: resolver
+      supportedContainerTypes:
+        - page
+      function: resolver
 
   # -------------------------------------------------------------------- webtrigger
   webtrigger:
@@ -469,23 +470,23 @@ modules:
         - dismiss-finding
         - open-remediation-ticket
 
-resources:
-  - key: global-page
-    path: src/ui/global-page.tsx
-  - key: space-settings
-    path: src/ui/space-settings.tsx
-  - key: content-action
-    path: src/ui/content-action.tsx
-  - key: certificate-macro
-    path: src/ui/certificate-macro.tsx
+# Les écrans UI Kit sont rendus par la fonction `resolver` (pas de resources
+# séparées — forme validée par `forge lint` le 12 novembre 2026). Les fichiers
+# d'écran (src/ui/*.tsx) sont importés par le résolveur dans le bundle.
 
 permissions:
   scopes:
-    # Contenu, pièces jointes, espaces, restrictions, utilisateurs (§19).
-    # Noms exacts à valider par `forge lint` + prototype semaine 1.
+    # Contenu, pièces jointes, espaces, restrictions, modèles, recherche,
+    # utilisateurs — noms EXACTS validés par `forge lint` le 12 novembre 2026
+    # (source : @forge/manifest/out/scopes/shipyard-scopes.json).
     - read:confluence-content.all
-    - read:confluence-content.attachment
-    - read:confluence-space
+    - read:content:confluence
+    - read:attachment:confluence
+    - read:space:confluence
+    - read:space.permission:confluence
+    - read:content.restriction:confluence
+    - read:template:confluence
+    - search:confluence
     - read:confluence-user
     - write:confluence-content
     # Jira : tickets de réparation du rituel (§9, étape 1).
@@ -493,9 +494,11 @@ permissions:
     - write:jira-work
     - read:jira-user
     # Teamwork Graph : lecture seule, un droit par type d'objet (§12).
-    - read:graph:document
-    - read:graph:project
-    - read:graph:space
+    # Noms exacts : page Confluence, projet, espace (le « document » du graphe
+    # pour une page Confluence est `read:graph:page:confluence`).
+    - read:graph:page:confluence
+    - read:graph:project:atlassian
+    - read:graph:space:confluence
     # Stockage de l'app (registre, budget, certificats).
     - storage:app
     # Pas de content.styles : l'app n'exécute aucun contenu tiers (§19).

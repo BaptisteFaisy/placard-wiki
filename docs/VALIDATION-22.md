@@ -82,3 +82,46 @@ pour vrais qu'après `forge lint` sur le manifeste réel :
 
 Tant qu'un nom de cette liste n'est pas confirmé par `forge lint`, il reste
 commenté comme « à valider » dans le manifeste et référencé vers cette page.
+
+## Vérifications réelles — 12 novembre 2026 (forge CLI 15.1.0, auth réussie)
+
+Premier passage de `forge lint` et `forge build` avec les vraies clés
+(`FORGE_EMAIL` + `FORGE_API_TOKEN`, wrapper `~/bin/forge-atlassian`). Verdicts :
+
+### Confirmé par `forge lint` (0 erreur après correctifs)
+
+- **App enregistrée** : `ari:cloud:ecosystem::app/dc47d23f-e4cd-4681-bb64-14ac02ea1c98`,
+  Developer Space « laddition », site cible `one-atlas-cndz.atlassian.net`.
+- **Modules Confluence réels** : `confluence:globalPage`, `confluence:spaceSettings`
+  (PAS `spaceSettingsPage`), `confluence:contentAction`, `confluence:customContent`.
+  **`confluence:macro` n'existe pas** dans le schéma (@forge/manifest) : le
+  certificat passe par `customContent` (`supportedContainerTypes: [page]`).
+- **Écrans UI Kit** : `{key, title, route?, function}` — ni `render`, ni
+  `resource`, ni `resolver` (contraire au patron Jira ; le template officiel
+  `confluence-global-page-ui-kit` génère lui-même une forme rejetée par le lint).
+- **scheduledTrigger** : `{key, interval, function}` avec `interval` parmi
+  `fiveMinute | hour | day | week` (pas de cron). Un seul `fiveMinute` (règle plateforme).
+- **Scopes exacts** (source : `@forge/manifest/out/scopes/shipyard-scopes.json`) :
+  `read:attachment:confluence`, `read:space:confluence`, `read:space.permission:confluence`,
+  `read:content.restriction:confluence`, `read:template:confluence`, `search:confluence`,
+  `read:confluence-content.all`, `read:content:confluence`, `read:confluence-user`,
+  `write:confluence-content`.
+- **Scopes Teamwork Graph exacts** (source : `teamwork-graph-scopes.json`) :
+  `read:graph:page:confluence` (le « document » d'une page), `read:graph:project:atlassian`,
+  `read:graph:space:confluence`. Les formes `read:graph:document` / `read:graph:project`
+  / `read:graph:space` sont INVALIDES.
+- `sql` (engine mysql), `llm` (claude), `action`/`rovo:mcp`/`rovo:agent`/`rovo:skill`,
+  `trigger` (événements AVI) et `webtrigger` : acceptés sans erreur par le lint.
+
+### Mesuré par `forge build` (bloqueur identifié, correctif en cours)
+
+- Le bundler Forge (webpack + ts-loader) exige un `tsconfig.json` dans le
+  dossier de l'app — ajouté (`packages/forge-app/tsconfig.json`, hérite de la
+  racine, `noEmit: false` sinon « TypeScript emitted no output »).
+- **Webpack ne résout PAS les imports relatifs avec extension `.js` vers les
+  fichiers `.ts`** (« Can't resolve './resolver.js' ») — conforme à la contrainte
+  mesurée sur tickets-pieges. Correctif en deux temps : (1) codemod des imports
+  sans extension dans `packages/*` ; (2) PR amont vers `placard` pour ses quatre
+  paquets réutilisés (core, detectors, analysis, ritual) — jamais de copie.
+- État au moment de cette note : `forge lint` ✅ 0 erreur ; `forge build` ⏳
+  en attente du codemod (1) et de la PR amont (2).
