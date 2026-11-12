@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "//": "Config du bundler Forge (ts-loader) pour l'app. Hérite du tsconfig racine (strict, ES2022, paths) mais SANS noEmit — le bundler Forge échoue avec « TypeScript emitted no output » si noEmit: true (contrainte mesurée, docs/FORGE hérité de tickets-pieges).",
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": false,
+    "outDir": "dist"
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}

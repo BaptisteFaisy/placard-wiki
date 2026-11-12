@@ -106,19 +106,22 @@ for (const [key, verb] of Object.entries(WRITE_TOOLS)) {
   if (action && action.actionVerb !== verb) fail(`action ${key} : verbe « ${action.actionVerb} » au lieu de ${verb} (§17)`);
 }
 
-// 3/4 — resources et écrans
+// 3/4 — écrans Confluence (forme validée par forge lint le 12 novembre 2026 :
+// UI Kit = {key, title, route?, function} ; les resources ne sont requises que
+// si un écran en déclare une).
 const resources = new Map((manifest.resources ?? []).map((r) => [r.key, r.path]));
 const SCREEN_MODULES = [
-  'confluence:globalPage', 'confluence:spaceSettingsPage',
-  'confluence:contentAction', 'confluence:macro',
+  'confluence:globalPage', 'confluence:spaceSettings',
+  'confluence:contentAction', 'confluence:customContent',
 ];
+const ROUTE_REQUIRED = ['confluence:globalPage', 'confluence:spaceSettings'];
 for (const moduleName of SCREEN_MODULES) {
   for (const screen of modules[moduleName] ?? []) {
-    if (!screen.resource) fail(`${moduleName} ${screen.key} : resource absente`);
-    else if (!resources.has(screen.resource)) fail(`${moduleName} ${screen.key} : resource « ${screen.resource} » non déclarée`);
-    if (!screen.resolver?.function && !screen.function) fail(`${moduleName} ${screen.key} : ni resolver ni function`);
-    const fn = screen.resolver?.function ?? screen.function;
-    if (fn && !declaredFunctions.has(fn)) fail(`${moduleName} ${screen.key} : function « ${fn} » non déclarée`);
+    const fn = screen.function ?? screen.resolver?.function;
+    if (!fn) fail(`${moduleName} ${screen.key} : aucune function`);
+    else if (!declaredFunctions.has(fn)) fail(`${moduleName} ${screen.key} : function « ${fn} » non déclarée`);
+    if (ROUTE_REQUIRED.includes(moduleName) && !screen.route) fail(`${moduleName} ${screen.key} : route absente`);
+    if (screen.resource && !resources.has(screen.resource)) fail(`${moduleName} ${screen.key} : resource « ${screen.resource} » non déclarée`);
   }
 }
 for (const [key, path] of resources) {
@@ -141,7 +144,7 @@ if ((modules.llm ?? []).length !== 1) fail('llm : un et un seul module de modèl
 // Rappels budget : un seul scheduledTrigger à 5 min (cahier §19)
 const scheduled = modules.scheduledTrigger ?? [];
 if (scheduled.length > 5) fail(`scheduledTrigger : ${scheduled.length} modules, la plateforme en accepte 5 au plus`);
-const fiveMin = scheduled.filter((s) => /cron:.*\*\/5/.test(String(s.interval ?? '')));
+const fiveMin = scheduled.filter((s) => s.interval === 'fiveMinute' || /cron:.*\*\/5/.test(String(s.interval ?? '')));
 if (fiveMin.length > 1) fail('scheduledTrigger : un seul intervalle de 5 minutes est autorisé par la plateforme');
 
 for (const note of notes) console.log('NOTE ' + note);
