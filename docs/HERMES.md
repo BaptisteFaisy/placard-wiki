@@ -88,6 +88,17 @@ dépôt, et le garde `couche0` refuse toute clé en clair dans les lignes ajout�
 - **Quota** (`quota.py`) : empreinte par tête de PR, cooldown 20 min, plafond
   10 saisines/heure, 3 saisines par PR en 30 min. Le dry-run ne consomme rien,
   l'union déterministe des journaux non plus.
+- **Porte de validation** (`compilation_gate.py`) : avant tout push, la
+  résolution est validée **avec la toolchain du dépôt**, par nature de fichier —
+  `py_compile` sur les `.py`, UTF-8 et non vide sur les documents (le contrôle
+  exact du job `ci`), `yaml.safe_load` sur les YAML si PyYAML est présent,
+  `pnpm verify` (types + tests + limites + manifeste) dès que du code ou un
+  verrou de dépendances est touché, Gradle pour l'héritage Kotlin. Rouge → **rien
+  n'est poussé**. Un contrôle qui ne peut pas tourner (pas de `node_modules` dans
+  le clone, PyYAML absent, délai dépassé) est **sauté et le dit** dans le compte
+  rendu publié : jamais de validation implicite. `HERMES_GATE_INSTALL=1` fait
+  installer les dépendances dans le clone (borné, best effort) pour que la jambe
+  TypeScript valide vraiment ; `HERMES_GATE_CMD` change la commande de validation.
 - **Périmètre d'écriture** : la branche de la PR, point. Refus des conflits sous
   `.github/` et `.mergify.yml`, des binaires, des fichiers > 200 Ko, plafond
   100 fichiers (25 pour le périmètre), budget 240 s.
@@ -140,6 +151,31 @@ Pour prouver la chaîne sans attendre un vrai conflit d'auteur :
 5. relever : heure du conflit, heure de la résolution, nombre de saisines,
    verdict `mergeable_state` après push. Un drill se note dans ce fichier —
    une preuve non datée n'est pas une preuve.
+
+### Relevé du 12 novembre 2026 (premier exercice, PR #33 / #34)
+
+| Heure (UTC) | Fait |
+|---|---|
+| 13:39:30 | Mergify met les deux PR en lot spéculatif (elles se contredisent) |
+| 13:47:30 | la jambe A fusionne (`2fdf3ed`, PR #33) ; la jambe B passe `DIRTY` (tête `863973f`) |
+| 13:47:38 | le balayeur part (run `43230693166`), constate `DIRTY`, clone et entame le rebase |
+| 13:53:01 | l'agent pousse le rebase réconcilié `5e34692` — identité du propriétaire, `--force-with-lease` |
+| 13:53:04 | compte rendu publié : « Conflit réconcilié par l'agent : 1 fichier(s) (`docs/drill/CONFLIT.md`), rebase poussé sur `drill/hermes-conflit` » |
+| 13:56:11 | la file fusionne la PR #34 (`2f0b64a`) : la CI verte est bien la seule porte |
+
+Résultat lu dans le fichier réconcilié : **les deux intentions conservées** — la
+« Version A » et la « Version B » de la ligne disputée, la section propre à la
+jambe B intacte, et les deux entrées de journal réunies. Aucune prise de côté
+forcée (ni `ours`, ni `theirs`), aucune réécriture complète du fichier. Délai conflit → résolution :
+5 min 23 s (dont l'attente d'un runner unique très chargé) ; résolution →
+fusion : 3 min 10 s. Une seule saisine de modèle.
+
+Ce que l'exercice a révélé, et qui est corrigé depuis : le compte rendu disait
+« porte de compilation sautée : pas de `gradlew` ici » — la porte héritée du
+dépôt d'origine ne connaissait que Gradle, donc sur ce dépôt elle ne validait
+**rien**, pas même un `.py` cassé. Elle valide désormais la toolchain réelle
+(py_compile, documents UTF-8, YAML, `pnpm verify`) et dit exactement ce qu'elle
+a joué ou sauté.
 
 ## 7. Ce que Hermes ne fait pas
 
