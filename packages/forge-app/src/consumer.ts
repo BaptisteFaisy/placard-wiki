@@ -10,6 +10,13 @@ import { getServiceContext } from './runtime/context';
 import { runSweep } from './services/index';
 
 interface ConsumeContext {
+  /**
+   * Mesuré le 12 novembre 2026 : le consumer reçoit un **AsyncEvent**
+   * (`{ body, ... }`) — le corps poussé par `Queue.push({ body })`. L'ancienne
+   * forme `{ payload }` n'était jamais remplie : la tranche revenait toujours
+   * en mode `incremental` sur le scope `site`.
+   */
+  body?: Record<string, unknown>;
   payload?: Record<string, unknown>;
   context?: Record<string, unknown>;
   accountId?: string;
@@ -23,24 +30,47 @@ function str(payload: Record<string, unknown> | undefined, key: string, fallback
   return typeof value === 'string' && value !== '' ? value : fallback;
 }
 
+/** Corps de l'événement : `body` (forme mesurée) avec repli sur `payload`. */
+function eventBody(event: ConsumeContext): Record<string, unknown> {
+  if (event.body !== undefined) return event.body;
+  if (event.payload !== undefined) return event.payload;
+  return {};
+}
+
 /** Republie la tranche suivante si la passe n'est pas terminée (§14). */
 async function republishIfNeeded(mode: string, scope: string, cursor: string | null): Promise<void> {
   if (cursor === null) return;
-  const queue = new Queue({ key: SWEEP_QUEUE });
-  await queue.push({ body: { mode, scope, cursor } });
+  try {
+    const queue = new Queue({ key: SWEEP_QUEUE });
+    await queue.push({ body: { mode, scope, cursor } });
+  } catch {
+    // La file n'est pas disponible (déploiement sans consumer actif) : la
+    // tranche est perdue, mais le curseur est persisté — la passe reprendra au
+    // prochain déclencheur planifié. Déclaré, jamais masqué (§19).
+    console.info('[placard] consumer : republication impossible — curseur conservé, reprise au prochain passage.');
+  }
 }
 
-export async function sweepConsumer({ payload }: ConsumeContext): Promise<void> {
+/** Exécute une tranche de balayage (le corps de l'AsyncEvent). */
+export async function consume(event: ConsumeContext): Promise<void> {
+  const payload = eventBody(event);
   const scope = str(payload, 'scope', 'site');
   const modeRaw = str(payload, 'mode', 'incremental');
   const mode = (modeRaw === 'full' || modeRaw === 'on-demand' ? modeRaw : 'incremental') as
     | 'incremental' | 'full' | 'on-demand';
-  const cursor = typeof payload?.['cursor'] === 'string' ? payload['cursor'] : undefined;
+  const cursor = typeof payload['cursor'] === 'string' ? payload['cursor'] : undefined;
   console.info(`[placard] sweep-consumer scope=${scope} mode=${mode}`);
-  const ctx = getServiceContext();
+  const ctx = await getServiceContext();
   const result = await runSweep(ctx, { mode, scope, cursor, maxPages: 100 });
   console.info(
     `[placard] tranche terminée pages=${String(result.pagesScanned)} foyers=${String(result.foyersTouched)} done=${String(result.done)}`,
   );
   await republishIfNeeded(mode, scope, result.nextCursor);
 }
+
+/**
+ * Résolveur du module `consumer`. Le manifeste appelle la **méthode**
+ * `consume` de cette fonction (`resolver: { function, method }`) : l'export
+ * doit donc être un objet de méthodes, pas une fonction nue.
+ */
+export const sweepConsumer = { consume };

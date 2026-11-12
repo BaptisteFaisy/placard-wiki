@@ -56,53 +56,69 @@ async function findingGet(ctx: ServiceContext, payload: { foyerId: string }): Pr
   return { view, exposure, ritual, owner, purgeRequests };
 }
 
+/** Accesseur asynchrone du contexte (la clé HMAC est résolue avant usage). */
+type CtxAccessor = () => Promise<ServiceContext>;
+
 /** Enregistre les vingt méthodes du bridge sur le résolveur Forge. */
-function defineAll(ctx: ServiceContext): void {
-  resolverInstance.define('registry/list', async ({ payload }) =>
-    registryRows(ctx, payload as never));
-  resolverInstance.define('finding/get', async ({ payload }) =>
-    findingGet(ctx, payload as { foyerId: string }));
+function defineAll(ctxRef: CtxAccessor): void {
+  resolverInstance.define('registry/list', async ({ payload }) => {
+    const ctx = await ctxRef();
+    return registryRows(ctx, payload as never);
+  });
+  resolverInstance.define('finding/get', async ({ payload }) => {
+    const ctx = await ctxRef();
+    return findingGet(ctx, payload as { foyerId: string });
+  });
   resolverInstance.define('finding/dismiss', async ({ payload }) => {
+    const ctx = await ctxRef();
     const p = payload as { foyerId: string; reason: string; reviewAt: string; actorRef: string };
     return dismiss(ctx, p.foyerId, p.reason, p.reviewAt, p.actorRef);
   });
   resolverInstance.define('ritual/attest', async ({ payload }) => {
+    const ctx = await ctxRef();
     const p = payload as { foyerId: string; provider: string; evidenceRef: string; actorRef: string; actorKind: 'human' | 'agent' };
     return attestRotation(ctx, p);
   });
   resolverInstance.define('ritual/redaction-preview', async ({ payload }) => {
+    const ctx = await ctxRef();
     const p = payload as { foyerId: string; locationIds?: string[] };
     return redactionPreview(ctx, p.foyerId, p.locationIds);
   });
   resolverInstance.define('ritual/redaction-apply', async ({ payload }) => {
-    const p = payload as { foyerId: string; approvedBy: string; comment: string };
-    return applyRedactionService(ctx, p.foyerId, p.approvedBy, p.comment);
+    const ctx = await ctxRef();
+    const p = payload as { findingId: string; approvedBy: string; comment: string };
+    return applyRedactionService(ctx, p.findingId, p.approvedBy, p.comment);
   });
   resolverInstance.define('ritual/purge-request', async ({ payload }) => {
-    const p = payload as { foyerId: string; pageId?: string; versionNumbers?: number[] };
-    return requestPurge(ctx, p.foyerId, p.pageId, p.versionNumbers);
+    const ctx = await ctxRef();
+    const p = payload as { findingId: string; pageId?: string; versionNumbers?: number[] };
+    return requestPurge(ctx, p.findingId, p.pageId, p.versionNumbers);
   });
   resolverInstance.define('ritual/ticket', async ({ payload }) => {
-    const p = payload as { foyerId: string; projectKey: string };
-    return openTicket(ctx, p.foyerId, p.projectKey);
+    const ctx = await ctxRef();
+    const p = payload as { findingId: string; projectKey: string };
+    return openTicket(ctx, p.findingId, p.projectKey);
   });
-  defineSweepMethods(ctx);
-  defineReadMethods(ctx);
+  defineSweepMethods(ctxRef);
+  defineReadMethods(ctxRef);
 }
 
 /** Méthodes de balayage, budget, couverture et adoption. */
-function defineSweepMethods(ctx: ServiceContext): void {
+function defineSweepMethods(ctxRef: CtxAccessor): void {
   resolverInstance.define('sweep/start', async ({ payload }) => {
+    const ctx = await ctxRef();
     const p = payload as { mode: 'incremental' | 'full' | 'on-demand'; scope: string };
     const result = await runSweep(ctx, { mode: p.mode, scope: p.scope, maxPages: 25 });
     const cursor = await ctx.store.cursors.get(p.scope, p.mode);
     return { cursor: cursor ?? { scope: p.scope, mode: p.mode, runAt: ctx.clock.now() }, result };
   });
   resolverInstance.define('sweep/status', async () => {
+    const ctx = await ctxRef();
     const cursor = await ctx.store.cursors.get('site', 'incremental');
     return { cursor: cursor ?? undefined, running: false };
   });
   resolverInstance.define('budget/get', async () => {
+    const ctx = await ctxRef();
     const day = ctx.clock.now().slice(0, 10);
     const budget = await ctx.store.budget.get(day);
     return budget ?? {
@@ -110,9 +126,16 @@ function defineSweepMethods(ctx: ServiceContext): void {
       llmCalls: 0, tokens: 0, costEstimate: 0, skipped: [],
     };
   });
-  resolverInstance.define('coverage/get', async () => coverageReport(ctx));
-  resolverInstance.define('adoption/list', async () => adoptionList(ctx));
+  resolverInstance.define('coverage/get', async () => {
+    const ctx = await ctxRef();
+    return coverageReport(ctx);
+  });
+  resolverInstance.define('adoption/list', async () => {
+    const ctx = await ctxRef();
+    return adoptionList(ctx);
+  });
   resolverInstance.define('adoption/assign', async ({ payload }) => {
+    const ctx = await ctxRef();
     const p = payload as { pageId: string; ownerRef: string; actorRef: string };
     await ctx.store.owners.put({
       pageId: p.pageId, ownerRef: p.ownerRef, method: 'declared-owner',
@@ -123,30 +146,36 @@ function defineSweepMethods(ctx: ServiceContext): void {
 }
 
 /** Méthodes de lecture : réglages, certificat, bâtiment, exposition. */
-function defineReadMethods(ctx: ServiceContext): void {
+function defineReadMethods(ctxRef: CtxAccessor): void {
   resolverInstance.define('settings/get', async ({ payload }) => {
+    const ctx = await ctxRef();
     const p = payload as { spaceKey: string };
     return ctx.store.settings.get(p.spaceKey);
   });
   resolverInstance.define('settings/save', async ({ payload }) => {
+    const ctx = await ctxRef();
     const p = payload as { settings: never; actorRef: string };
     await ctx.store.settings.put(p.settings);
     return { ok: true as const };
   });
   resolverInstance.define('certificate/generate', async ({ payload }) => {
+    const ctx = await ctxRef();
     const p = payload as { scope: string };
     return generateCertificate(ctx, p.scope);
   });
   resolverInstance.define('certificate/get', async ({ payload }) => {
+    const ctx = await ctxRef();
     const p = payload as { certificateId: string };
     const cert = await ctx.store.certificates.get(p.certificateId);
     return cert ?? { error: 'certificat-introuvable' };
   });
   resolverInstance.define('building/get', async ({ payload }) => {
+    const ctx = await ctxRef();
     const p = payload as { spaceKey?: string };
     return buildingModel(ctx, p.spaceKey);
   });
   resolverInstance.define('exposure/get', async ({ payload }) => {
+    const ctx = await ctxRef();
     const p = payload as { pageId: string };
     const stored = await ctx.store.exposures.get(p.pageId);
     if (stored !== null) return stored;
@@ -158,6 +187,6 @@ function defineReadMethods(ctx: ServiceContext): void {
 const DECLARED: readonly BridgeMethod[] = BRIDGE_METHODS;
 void DECLARED;
 
-defineAll(getServiceContext());
+defineAll(getServiceContext);
 
 export const resolver = resolverInstance.getDefinitions();

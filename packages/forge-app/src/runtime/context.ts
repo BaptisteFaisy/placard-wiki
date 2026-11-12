@@ -11,8 +11,6 @@
  */
 
 import { asApp, asUser, assumeTrustedRoute, __getRuntime } from '@forge/api';
-import type { ResponseLike } from '@placard-wiki/wiki-source';
-import { createConfluenceClient } from '@placard-wiki/wiki-source';
 import type { ConfluenceClient } from '@placard-wiki/wiki-source';
 import { createCachedOracle, ORACLE_SYSTEM_PROMPT_FR } from '@placard-wiki/detectors';
 import type { CachedOracle, LlmOracle, LlmOracleQuestion, LlmOracleVerdict } from '@placard-wiki/detectors';
@@ -20,8 +18,13 @@ import { chat } from '@forge/llm';
 import { appEvents } from '@forge/events';
 import type { ClockPort, IdPort, StoragePort } from '@placard-wiki/ritual';
 
-import { createForgeStore } from '../store/forge-store';
+import { createForgeConfluence } from './confluence';
+import { createForgeStore, readOrCreateAppSecret } from '../store/forge-store';
 import type { ForgeStore } from '../store/ports';
+import {
+  HMAC_SECRET_NAME, HMAC_VARIABLE, generateHmacKey, staticVariable,
+} from './secret';
+import type { HmacSource } from './secret';
 import type {
   AccessPort, ActorContext, JiraPort, OwnerSourcePort, RealtimePort,
   ServiceContext, TeamworkGraphPort,
@@ -50,22 +53,66 @@ function installationKey(): string {
   }
 }
 
-/** Adaptateur `fetch` pour le client Confluence (via `asApp().requestConfluence`). */
-function confluenceFetch(): (url: string, init?: { method?: string }) => Promise<ResponseLike> {
-  return async (url, init) => {
-    const response = await asApp().requestConfluence(assumeTrustedRoute(url), { method: init?.method ?? 'GET' });
-    return {
-      status: response.status,
-      ok: response.ok,
-      json: () => response.json(),
-      text: () => response.text(),
-    };
-  };
+/**
+ * Résout la clé HMAC de l'installation : variable statique Forge, puis table
+ * technique `app_secret`, puis repli dérivé de l'installation (voir
+ * `runtime/secret.ts`). La valeur n'est jamais journalisée — seule la source.
+ */
+async function resolveHmacKey(): Promise<{ key: string; source: HmacSource }> {
+  const fromVariable = staticVariable(HMAC_VARIABLE);
+  if (fromVariable !== undefined) return { key: fromVariable, source: 'variable-forge' };
+  try {
+    const persisted = await readOrCreateAppSecret(HMAC_SECRET_NAME, generateHmacKey);
+    if (persisted !== '') return { key: persisted, source: 'sql-app_secret' };
+  } catch {
+    // Le store est indisponible : on retombe sur la clé d'installation.
+  }
+  return { key: installationKey(), source: 'repli-installation' };
 }
 
-/** Client Confluence de production (chemins v1/v2 à valider, §22). */
+/**
+ * Client Confluence de production. Les chemins qui répondent 200 pour
+ * l'identité de l'app sont choisis dans `runtime/confluence.ts` (mesuré le
+ * 12 novembre 2026) ; le reste du paquet `wiki-source` reste inchangé.
+ */
 function createConfluence(): ConfluenceClient {
-  return createConfluenceClient(confluenceFetch() as never, '', '');
+  return createForgeConfluence();
+}
+
+/**
+ * Texte d'une réponse `@forge/llm`. Mesuré le 12 novembre 2026 : le contenu
+ * arrive en **blocs** (`content: [{ type: 'text', text }]`), pas en chaîne —
+ * `String(...)` sur un tableau donnait `[object Object]` et tout verdict
+ * devenait « non exploitable ». Les deux formes sont acceptées.
+ */
+function llmText(response: unknown): string {
+  const choices = (response as { choices?: Array<{ message?: { content?: unknown } }> }).choices ?? [];
+  const content = choices[0]?.message?.content;
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        if (typeof part !== 'object' || part === null) return '';
+        const block = part as { type?: string; text?: string };
+        return block.type === 'text' ? (block.text ?? '') : '';
+      })
+      .join('');
+  }
+  return '';
+}
+
+/** Extrait l'objet JSON d'une réponse d'oracle (bloc ```json``` ou texte libre). */
+function parseVerdict(text: string): Partial<LlmOracleVerdict> | null {
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(text);
+  const candidate = fenced?.[1] ?? text;
+  const start = candidate.indexOf('{');
+  const end = candidate.lastIndexOf('}');
+  if (start === -1 || end <= start) return null;
+  try {
+    return JSON.parse(candidate.slice(start, end + 1)) as Partial<LlmOracleVerdict>;
+  } catch {
+    return null;
+  }
 }
 
 /** Oracle LLM hébergé : invite masquée, verdict JSON (§7, §14). */
@@ -78,17 +125,15 @@ function createLlmOracle(): LlmOracle {
         { role: 'user', content: `Contexte masqué :\n${question.maskedContext}\n\nAperçu : ${question.maskedPreview}` },
       ],
     });
-    const text = String(response.choices[0]?.message.content ?? '');
-    try {
-      const parsed = JSON.parse(text) as Partial<LlmOracleVerdict>;
-      return {
-        isSecret: parsed.isSecret !== false,
-        reasonFr: parsed.reasonFr ?? 'verdict de l’oracle',
-        confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
-      };
-    } catch {
+    const parsed = parseVerdict(llmText(response));
+    if (parsed === null) {
       return { isSecret: true, reasonFr: 'réponse de l’oracle non exploitable — candidat maintenu', confidence: 0 };
     }
+    return {
+      isSecret: parsed.isSecret !== false,
+      reasonFr: parsed.reasonFr ?? 'verdict de l’oracle',
+      confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
+    };
   };
 }
 
@@ -210,7 +255,29 @@ function createAccess(client: ConfluenceClient, actor: () => ActorContext): Acce
   };
 }
 
+/**
+ * Sonde les points d'accès Confluence depuis l'identité de l'app et renvoie
+ * le statut HTTP de chacun. Diagnostic mesuré (12 novembre 2026) : la
+ * recherche CQL répond 200 alors que la lecture d'une page répond 401 — il
+ * faut donc savoir quel chemin fonctionne avant de balayer.
+ */
+export async function probeConfluence(
+  paths: readonly string[],
+): Promise<Array<{ path: string; status: number; error?: string }>> {
+  const out: Array<{ path: string; status: number; error?: string }> = [];
+  for (const path of paths) {
+    try {
+      const response = await asApp().requestConfluence(assumeTrustedRoute(path));
+      out.push({ path, status: response.status });
+    } catch (error) {
+      out.push({ path, status: -1, error: String(error) });
+    }
+  }
+  return out;
+}
+
 let cachedContext: ServiceContext | null = null;
+let pendingContext: Promise<ServiceContext> | null = null;
 
 /** Acteur courant, lu depuis le runtime Forge (`aaid` = Atlassian Account ID). */
 function currentActor(): ActorContext {
@@ -223,16 +290,17 @@ function currentActor(): ActorContext {
   }
 }
 
-/** Construit (et met en cache) le contexte de service Forge. */
-export function getServiceContext(): ServiceContext {
-  if (cachedContext !== null) return cachedContext;
+/** Assemble le contexte : la clé HMAC est résolue AVANT (elle conditionne les empreintes). */
+async function buildContext(): Promise<ServiceContext> {
+  const hmac = await resolveHmacKey();
+  console.info(`[placard] clé HMAC : source=${hmac.source} (valeur jamais journalisée).`);
   const store: ForgeStore = createForgeStore();
   const confluence = createConfluence();
-  const oracle: CachedOracle = createCachedOracle(createLlmOracle(), { hmacKey: installationKey() });
-  cachedContext = {
+  const oracle: CachedOracle = createCachedOracle(createLlmOracle(), { hmacKey: hmac.key });
+  return {
     store,
     confluence,
-    hmacKey: installationKey(),
+    hmacKey: hmac.key,
     clock,
     ids,
     storage: createStorage(),
@@ -244,5 +312,27 @@ export function getServiceContext(): ServiceContext {
     access: createAccess(confluence, currentActor),
     actor: currentActor,
   };
-  return cachedContext;
+}
+
+/**
+ * Construit (et met en cache) le contexte de service Forge. Asynchrone : la
+ * clé HMAC est lue depuis la variable statique ou persistée en base avant la
+ * première empreinte — une clé regenerated à chaque invocation ferait dériver
+ * toutes les empreintes.
+ */
+export function getServiceContext(): Promise<ServiceContext> {
+  if (cachedContext !== null) return Promise.resolve(cachedContext);
+  if (pendingContext === null) {
+    pendingContext = buildContext().then(
+      (ctx) => {
+        cachedContext = ctx;
+        return ctx;
+      },
+      (error: unknown) => {
+        pendingContext = null; // l'appel suivant retente
+        throw error;
+      },
+    );
+  }
+  return pendingContext;
 }

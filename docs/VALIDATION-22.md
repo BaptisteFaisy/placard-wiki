@@ -134,3 +134,175 @@ Premier passage de `forge lint` et `forge build` avec les vraies clés
 - Restent à valider en situation (prototypes de la semaine 1) : purge d'une
   version précise, lecture binaire des pièces jointes, Realtime ciblé,
   `asUser()` en écriture, état de partage via API, groupes imbriqués.
+
+## Chaîne live du 12 novembre 2026 — l'app EN VRAI, sur le site réel
+
+> Ce qui suit est **mesuré**, pas théorique :logs `forge logs -e production`,
+> réponses HTTP du webtrigger public, base Forge SQL. Site :
+> `one-atlas-cndz.atlassian.net` (site de démo Atlassian, espace `PLACARDDEMO`
+> semé de **faux** secrets — 16 pages, 12 commentaires, 12 pièces jointes,
+> une page à 2 versions, un modèle).
+
+### 1. Le blocage historique : le schéma SQL n'était jamais créé
+
+Le déclencheur planifié `pw-incremental` échouait toutes les 5 minutes :
+
+```
+ERROR ForgeSQLAPIError : Table '…sweep_cursor' doesn't exist
+  sql: 'SELECT * FROM sweep_cursor WHERE scope = ? AND mode = ? LIMIT 1'
+```
+
+`initSchema()` existait dans `packages/forge-app/src/store/forge-store.ts` mais
+**n'était appelée par personne** : la migration était écrite, jamais exécutée.
+
+**Correctif** : `ensureSchema()` — le `migrationRunner` est exécuté **et
+attendu** avant chaque lecture et chaque écriture (`CREATE TABLE IF NOT EXISTS`,
+passages journalisés dans `__migrations`). Aucune requête ne part avant que les
+onze tables du §20 existent.
+
+> Extrait de log après le correctif :
+> `INFO [placard] schéma SQL prêt (onze tables du §20 + app_secret).`
+
+### 2. La clé HMAC : stable, générée une fois, jamais affichée
+
+`ctx.hmacKey` (`src/services/ports.ts`) venait de `installationKey()`, dérivée de
+l'identifiant d'installation : stable, mais devinable. Elle vient maintenant
+d'une résolution en trois temps (`src/runtime/secret.ts`) :
+
+1. **variable statique Forge** (`forge variables set PW_HMAC_KEY …`, chiffrée) ;
+2. **table technique `app_secret`** du store SQL : la clé y est générée **une
+   fois** puis relue à chaque invocation (c'est le chemin mesuré en
+   production — la variable statique n'est pas exposée au runtime par
+   `process.env.FORGE_VARIABLES`) ;
+3. **repli** dérivé de l'identifiant d'installation, signalé dans le journal.
+
+Le journal ne dit que la **source**, jamais la valeur :
+
+```
+INFO [placard] clé HMAC : source=sql-app_secret (valeur jamais journalisée).
+```
+
+### 3. Ce qui marche en vrai
+
+| Chaîne | État | Preuve |
+|---|---|---|
+| Migration SQL (11 tables + `app_secret`) | ✅ | log « schéma SQL prêt » |
+| Clé HMAC stable entre invocations | ✅ | source `sql-app_secret`, même clé d'une passe à l'autre |
+| Balayage **réel** de `PLACARDDEMO` | ✅ | 16 pages lues, **24 foyers** détectés, **40 emplacements**, ~29 s |
+| Détection dans les 9 familles vues | ✅ | `bank-data`, `cloud-key`, `connection-string`, `credential-table`, `identity`, `platform-token`, `private-key`, `signed-token`, `suspicious-string` |
+| Scores et termes appliqués | ✅ | score 60–70 sur les foyers, termes avec libellé, méthode et preuve |
+| Webtrigger public `pw-public-demo` | ✅ | HTTP 200 + JSON (voir §5) |
+| CORS (`*`, `OPTIONS` géré) | ✅ | en-têtes `access-control-allow-origin: *` sur la réponse |
+
+### 4. Ce qui a dû être corrigé en cours de route (pièges mesurés)
+
+- **CQL incrémental sans filtre de type** : la recherche ramène aussi les
+  **pièces jointes** (1 276 sur ce site). La passe les traitait comme des
+  pages, chaque lecture échouait, et le balayage ne trouvait rien. Correction :
+  `type = page` ajouté au CQL incrémental (`src/services/sweep.ts`).
+- **Réponse `@forge/llm` en blocs** : `content: [{ type: 'text', text }]`, pas
+  une chaîne — `String(...)` donnait `[object Object]` et tout verdict
+  devenait « non exploitable » (`src/runtime/context.ts`).
+- **Événement du consumer** : c'est un `AsyncEvent` `{ body, … }`, pas
+  `{ payload }` — la tranche revenait toujours en mode `incremental` sur
+  `site` (`src/consumer.ts`).
+- **En-têtes d'une réponse dynamique** : `{ [clé]: string[] }`, pas une chaîne
+  seule. Une chaîne seule fait échouer la sérialisation : la plateforme
+  répond **424 « Failed Dependency »** *sans journal d'erreur*. C'est ce qui
+  rendait le webtrigger muet (les deux webtriggers, y compris celui de
+  `origin/main`, étaient concernés).
+- **401 sur tous les points d'accès directs de contenu** : avec l'identité de
+  l'app (`asApp`), seul le point d'accès de **recherche** répond 200 :
+
+  ```
+  200  /wiki/rest/api/content/search?cql=id%3D…&expand=body.storage,version
+  401  /wiki/rest/api/content/{id}                  (v1)
+  401  /wiki/rest/api/content/{id}/child/comment
+  401  /wiki/rest/api/content/{id}/child/attachment
+  401  /wiki/api/v2/pages/{id}                      (v2)
+  200  /wiki/rest/api/content/{id}/restriction
+  ```
+
+  La page (corps, titre, version, étiquettes) est donc lue **par la
+  recherche** (`src/runtime/confluence.ts`), et les gîtes hors de portée sont
+  lus **un par un** : chaque gîte inaccessible est **déclaré** en angle mort,
+  il ne fait pas perdre la page entière (`src/services/scan-page.ts`).
+
+### 5. L'URL du webtrigger public et un exemple de réponse
+
+URL (`forge webtrigger create -f pw-public-demo -e production`) :
+
+```
+https://268bea73-73bf-4b1e-a3e7-862161c6298a.webtrigger.atlassian.app/public/U3iRFUXiNU509Lv_sk5n7382zbI
+```
+
+`GET` (réponse tronquée) :
+
+```json
+{
+  "generatedAt": "2026-11-12T15:14:02.318Z",
+  "mode": "live",
+  "site": {
+    "name": "one-atlas-cndz.atlassian.net",
+    "url": "https://one-atlas-cndz.atlassian.net/wiki",
+    "spaces": [{ "key": "PLACARDDEMO", "fr": "PLACARDDEMO", "en": "PLACARDDEMO" }],
+    "titles": { "3964930": "Tableau d'identifiants — staging (SYNTHÉTIQUE)" }
+  },
+  "registry": [
+    {
+      "foyerId": "foyer-hmac256:bf6bad33",
+      "family": "cloud-key",
+      "maskedPreview": "AKIA…(20)",
+      "score": 70,
+      "state": "open",
+      "spaceKey": "PLACARDDEMO",
+      "pageId": "3964930",
+      "locationCount": 2,
+      "inCurrentVersion": true,
+      "inHistory": false,
+      "readersLow": 0,
+      "readersHigh": 0,
+      "sharing": "space-default",
+      "aiSurface": true
+    }
+  ],
+  "foyers": { "foyer-hmac256:7e9c6c70": { "family": "bank-data", "score": 60, "…": "…" } },
+  "budget": { "day": "2026-11-12", "pagesScanned": 232, "llmCalls": 16, "…": "…" },
+  "coverage": { "perGite": [{ "gite": "corps-de-page", "scanned": 232, "skipped": 0 }], "…": "…" },
+  "certificate": { "scope": "site", "open": 24, "…": "…" }
+}
+```
+
+Les **formes** sont celles des données embarquées du site public
+(`site/src/data/demo.ts` et `demo-site.ts`) : `registry` = `REGISTRY_ROWS`,
+`building` = `BUILDING`, `foyers` = `FOYERS` (indexé par identifiant),
+`budget` = `BUDGET`, `coverage` = `COVERAGE`, `certificate` = `CERTIFICATE` —
+les deux sources sont donc interchangeables côté site.
+
+**Aucune valeur brute** : les aperçus sont masqués (`AKIA…(20)`), les
+empreintes sont des HMAC, et les **titres de page sont masqués eux aussi**
+(l'espace de démonstration place des faux secrets dans les titres — mesuré le
+12 novembre 2026 ; les valeurs brutes ont été retirées de la charge utile).
+
+### 6. Ce qui reste à faire (honnêteté)
+
+- **Gîtes hors de portée pour l'identité de l'app** : commentaires, pièces
+  jointes, historique de versions renvoient 401. Ils sont déclarés en angles
+  morts à chaque passe. Les 24 foyers détectés viennent donc du gîte
+  « corps de page » seul ; un contexte **utilisateur** (`asUser`) les rendrait
+  lisibles — à prototyper (§22).
+- **La file `pw-sweep-queue` ne répond pas** : `Queue.push` renvoie 400 Bad
+  Request en production, la chaîne de tranches ne s'enchaîne donc pas. La
+  passe planifiée et la passe **en ligne** du webtrigger (`?sweep=1`, bornée à
+  25 pages) couvrent le besoin ; le point d'accès de la file reste à
+  corriger (probablement le module `consumer` à redéclarer).
+- **Passe complète du site** : le site de démo compte ~3 100 pages ; une passe
+  complète dépasse le budget d'appels réseau d'une fonction. La validation porte
+  donc sur l'espace `PLACARDDEMO` (16 pages), pas sur le site entier.
+- **Exposition** : `readersLow`/`readersHigh` valent 0 et le partage est
+  présumé `space-default` : les permissions d'espace ne sont pas lisibles par
+  l'app non plus. C'est **déclaré** (`missingRights`), pas masqué.
+- **`/wiki/api/v2/spaces/{clé}`** répond 400 (l'API v2 attend un identifiant
+  numérique, pas une clé) : la description d'espace est donc absente.
+- Les points §22 non encore traités (purge d'une version, Realtime ciblé,
+  `asUser()` en écriture, groupes imbriqués) restent ouverts.

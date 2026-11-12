@@ -46,6 +46,10 @@ modules:
     - key: purge-request-hook
       handler: index.purgeRequestHook
 
+    # Chaîne live : le JSON public des données réellement balayées (§15, §23).
+    - key: public-demo-hook
+      handler: index.publicDemoHook
+
     # Les treize outils MCP (§17) : une fonction par outil.
     - key: scanPage
       handler: index.scanPage
@@ -158,9 +162,17 @@ modules:
       function: resolver
 
   # -------------------------------------------------------------------- webtrigger
+  # Deux canaux publics : les demandes de purge (admin) et la chaîne live
+  # (JSON des données réellement balayées, consommé par le site public).
+  # `response: dynamic` permet de fixer soi-même les en-têtes (CORS) et le corps.
   webtrigger:
     - key: pw-purge-request
       function: purge-request-hook
+      urlFormat: v2
+      response:
+        type: dynamic
+    - key: pw-public-demo
+      function: public-demo-hook
       urlFormat: v2
       response:
         type: dynamic
