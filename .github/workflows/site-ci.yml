@@ -13,6 +13,11 @@ on:
       - 'pnpm-lock.yaml'
       - '.github/workflows/pages.yml'
       - '.github/workflows/site-ci.yml'
+      # La garde de fuite live (tools/leak-check.mjs) et les tests de non-fuite
+      # (packages/forge-app) sont rejoués ici : site-ci.yml n'est pas un fichier
+      # de garde, contrairement à ci.yml — le rejeu réseau n'y est pas autorisé.
+      - 'tools/**'
+      - 'packages/forge-app/**'
   merge_group:
   workflow_dispatch:
 
@@ -77,3 +82,21 @@ jobs:
       - name: Build du site
         shell: bash
         run: pnpm --filter @placard-wiki/site build
+
+      # Garde de fuite sur la charge utile live réelle : elle rejoue le corpus
+      # de canaris sur le JSON du webtrigger public. Une fuite est bloquante ;
+      # une indisponibilité du site live n'est pas bloquante (la garde stricte,
+      # hors ligne, est faite par les tests vitest du job `ci`).
+      - name: Garde de fuite sur la charge utile live (webtrigger public)
+        shell: bash
+        run: |
+          set -uo pipefail
+          node tools/leak-check.mjs
+          code=$?
+          if [ "$code" -eq 1 ]; then
+            echo "::error:: une valeur de test fuit dans la charge utile live (voir le journal)"
+            exit 1
+          fi
+          if [ "$code" -ne 0 ]; then
+            echo "::warning:: charge utile live indisponible (code $code) — la garde stricte hors ligne reste faite par pnpm test"
+          fi
