@@ -5,7 +5,7 @@ import { FAMILY_LABELS, GITES } from '@placard-wiki/domain';
 import type { FoyerState, WikiFamily } from '@placard-wiki/domain';
 import { useLang } from './i18n.js';
 import type { DictKey } from './i18n-dict.js';
-import { STATE_KEYS } from './data/demo.js';
+import { STATE_KEYS } from './data/labels.js';
 
 /** Classe de couleur du score — jamais la couleur seule : le chiffre est affiché. */
 export function dangerClass(score: number): 'danger-low' | 'danger-mid' | 'danger-high' {

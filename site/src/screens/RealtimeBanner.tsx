@@ -6,8 +6,8 @@
 
 import { useEffect, useState } from 'react';
 import { FAMILY_LABELS } from '@placard-wiki/domain';
-import { FOYERS } from '../data/demo.js';
 import { useLang } from '../i18n.js';
+import { usePlacardData } from '../data/placard-data.js';
 
 /** Vitesse de la simulation : 1 seconde simulée = 200 ms réelles. */
 const TICK_MS = 200;
@@ -26,7 +26,9 @@ const DRAFT_TEXT = [
 /** La bannière poussée à l'auteur : motif, danger, [voir] [caviarder]. */
 function RealtimeBanner({ onView, onRedact }: { onView: () => void; onRedact: () => void }): JSX.Element {
   const { t, pick } = useLang();
-  const foyer = FOYERS['F-1']!;
+  const { dataset } = usePlacardData();
+  const foyer = dataset.foyers['F-1'] ?? Object.values(dataset.foyers)[0];
+  if (!foyer) return <div className="realtime-banner" role="alert" />;
   const text = t('bannerText')
     .replace('{family}', pick(FAMILY_LABELS[foyer.family]))
     .replace('{score}', String(foyer.score));
@@ -74,6 +76,8 @@ function PublishControls({
 
 export function RealtimeBannerScreen({ onOpenFoyer }: { onOpenFoyer: (id: string) => void }): JSX.Element {
   const { t } = useLang();
+  const { dataset } = usePlacardData();
+  const demoFoyerId = dataset.foyers['F-1']?.id ?? Object.values(dataset.foyers)[0]?.id ?? 'F-1';
   const [published, setPublished] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [redacted, setRedacted] = useState(false);
@@ -108,7 +112,7 @@ export function RealtimeBannerScreen({ onOpenFoyer }: { onOpenFoyer: (id: string
           <p className="banner-counter">
             {t('bannerPushed')} t + {String(elapsed)} s
           </p>
-          <RealtimeBanner onView={() => onOpenFoyer('F-1')} onRedact={() => setRedacted(true)} />
+          <RealtimeBanner onView={() => onOpenFoyer(demoFoyerId)} onRedact={() => setRedacted(true)} />
         </>
       )}
       {redacted && (

@@ -10,7 +10,7 @@ import { FAMILY_LABELS } from '@placard-wiki/domain';
 export const ALL_FAMILIES: readonly WikiFamily[] = Object.keys(FAMILY_LABELS) as WikiFamily[];
 
 /** Réglages par défaut d'un espace : tout actif, seuil 0, rien d'exclu. */
-function defaults(spaceKey: string, minScore: number, demoMode: boolean): SpaceSettings {
+export function defaultSettingsFor(spaceKey: string, minScore = 0, demoMode = true): SpaceSettings {
   return {
     spaceKey,
     familiesEnabled: [...ALL_FAMILIES],
@@ -23,9 +23,9 @@ function defaults(spaceKey: string, minScore: number, demoMode: boolean): SpaceS
 
 /** Jeu initial des trois espaces de la démo (§15 : mode démo marqué). */
 export const INITIAL_SETTINGS: Readonly<Record<string, SpaceSettings>> = {
-  DEMO: defaults('DEMO', 0, true),
+  DEMO: defaultSettingsFor('DEMO', 0, true),
   OPS: {
-    ...defaults('OPS', 20, true),
+    ...defaultSettingsFor('OPS', 20, true),
     purgePolicy: 'api-if-possible',
     exclusions: [
       {
@@ -34,7 +34,7 @@ export const INITIAL_SETTINGS: Readonly<Record<string, SpaceSettings>> = {
       },
     ],
   },
-  ARCH: defaults('ARCH', 0, true),
+  ARCH: defaultSettingsFor('ARCH', 0, true),
 };
 
 /** Une ligne du registre passe-t-elle les réglages de son espace ? */

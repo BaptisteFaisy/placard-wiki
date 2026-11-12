@@ -3,12 +3,14 @@
 // les DROITS MANQUANTS sont distingués de « pas de données ». Données typées
 // `CoverageReport` du domaine ; l'écran n'ajoute que la présentation bilingue.
 
-import { COVERAGE, MISSING_RIGHTS_EN, NO_DATA_VS_NO_RIGHT, SPACE_BLIND_SPOT_EN } from '../data/coverage.js';
+import { NO_DATA_VS_NO_RIGHT } from '../data/coverage.js';
+import type { CoverageReport } from '@placard-wiki/domain';
 import { useLang } from '../i18n.js';
+import { usePlacardData } from '../data/placard-data.js';
 import { formatDate, GiteLabel } from '../ui.js';
 
 /** Table de couverture par gîte : balayé / non lu / raison. */
-function PerGiteTable(): JSX.Element {
+function PerGiteTable({ coverage }: { coverage: CoverageReport }): JSX.Element {
   const { t } = useLang();
   return (
     <table className="registry">
@@ -22,7 +24,7 @@ function PerGiteTable(): JSX.Element {
         </tr>
       </thead>
       <tbody>
-        {COVERAGE.perGite.map((entry) => (
+        {coverage.perGite.map((entry) => (
           <tr key={entry.gite}>
             <td>
               <GiteLabel gite={entry.gite} />
@@ -38,14 +40,15 @@ function PerGiteTable(): JSX.Element {
 }
 
 /** Angles morts déclarés : whiteboards, bases, captures — jamais tus. */
-function BlindSpots(): JSX.Element {
+function BlindSpots(props: { blindSpots: readonly string[]; blindSpotsEn?: readonly string[] }): JSX.Element {
   const { t, lang } = useLang();
+  const { blindSpots, blindSpotsEn } = props;
   return (
     <section aria-label={t('covBlind')}>
       <h3>{t('covBlind')}</h3>
       <ul>
-        {COVERAGE.blindSpots.map((spot, index) => (
-          <li key={spot}>{lang === 'en' ? (SPACE_BLIND_SPOT_EN[index] ?? spot) : spot}</li>
+        {blindSpots.map((spot, index) => (
+          <li key={spot}>{lang === 'en' ? (blindSpotsEn?.[index] ?? spot) : spot}</li>
         ))}
       </ul>
     </section>
@@ -53,14 +56,15 @@ function BlindSpots(): JSX.Element {
 }
 
 /** Droits manquants — distingués de « pas de données ». */
-function MissingRights(): JSX.Element {
+function MissingRights(props: { missingRights: readonly string[]; missingRightsEn?: readonly string[] }): JSX.Element {
   const { t, lang } = useLang();
+  const { missingRights, missingRightsEn } = props;
   return (
     <section aria-label={t('covRights')}>
       <h3>{t('covRights')}</h3>
       <ul className="rights-list">
-        {COVERAGE.missingRights.map((right, index) => (
-          <li key={right}>{lang === 'en' ? (MISSING_RIGHTS_EN[index] ?? right) : right}</li>
+        {missingRights.map((right, index) => (
+          <li key={right}>{lang === 'en' ? (missingRightsEn?.[index] ?? right) : right}</li>
         ))}
       </ul>
       <p className="tool-note">
@@ -72,16 +76,18 @@ function MissingRights(): JSX.Element {
 
 export function CoverageScreen({ onGotoBudget }: { onGotoBudget: () => void }): JSX.Element {
   const { t, lang } = useLang();
+  const { dataset } = usePlacardData();
+  const coverage = dataset.coverage;
   return (
     <section className="screen">
       <h2>{t('covTitle')}</h2>
       <p className="small muted">{t('covIntro')}</p>
       <p className="muted">
-        {t('covLastPass')} : {COVERAGE.lastPassAt ? formatDate(COVERAGE.lastPassAt, lang) : '—'}
+        {t('covLastPass')} : {coverage.lastPassAt ? formatDate(coverage.lastPassAt, lang) : '—'}
       </p>
-      <PerGiteTable />
-      <BlindSpots />
-      <MissingRights />
+      <PerGiteTable coverage={coverage} />
+      <BlindSpots blindSpots={coverage.blindSpots} blindSpotsEn={dataset.coverageBlindSpotsEn} />
+      <MissingRights missingRights={coverage.missingRights} missingRightsEn={dataset.missingRightsEn} />
       <p className="small muted">{t('covBudgetLink')}</p>
       <p>
         <button className="action" type="button" onClick={onGotoBudget}>

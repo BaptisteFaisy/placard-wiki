@@ -7,8 +7,8 @@ import { useState } from 'react';
 import { FAMILY_LABELS } from '@placard-wiki/domain';
 import type { SpaceSettings, WikiFamily } from '@placard-wiki/domain';
 import { ALL_FAMILIES } from '../data/settings.js';
-import { SPACES } from '../data/demo.js';
 import { useLang } from '../i18n.js';
+import { usePlacardData } from '../data/placard-data.js';
 
 /** Cases des familles actives — 11 identifiants pour 12 numéros (§7). */
 function FamiliesField({
@@ -130,7 +130,7 @@ function MiscFields({ working, patch }: { working: SpaceSettings; patch: (p: Par
 }
 
 /** Sélecteur d'espace — réinitialise le brouillon à chaque changement. */
-function SpacePicker({ spaceKey, onChange }: { spaceKey: string; onChange: (key: string) => void }): JSX.Element {
+function SpacePicker({ spaceKey, onChange, spaces }: { spaceKey: string; onChange: (key: string) => void; spaces: readonly { key: string; fr: string; en: string }[] }): JSX.Element {
   const { t, pick } = useLang();
   return (
     <>
@@ -138,7 +138,7 @@ function SpacePicker({ spaceKey, onChange }: { spaceKey: string; onChange: (key:
         {t('setSpace')}
       </label>
       <select id="settings-space" value={spaceKey} onChange={(e) => onChange(e.target.value)}>
-        {SPACES.map((space) => (
+        {spaces.map((space) => (
           <option key={space.key} value={space.key}>
             {space.key} — {pick(space)}
           </option>
@@ -203,7 +203,10 @@ interface SettingsScreenProps {
 
 export function SpaceSettingsScreen(props: SettingsScreenProps): JSX.Element {
   const { t } = useLang();
-  const [spaceKey, setSpaceKey] = useState<string>('OPS');
+  const { dataset } = usePlacardData();
+  const spaces = dataset.spaces;
+  const [chosen, setChosen] = useState<string>('');
+  const spaceKey = spaces.some((space) => space.key === chosen) ? chosen : spaces[0]?.key ?? '';
   const current = props.settings[spaceKey];
   const [draft, setDraft] = useState<SpaceSettings | null>(null);
   const [saved, setSaved] = useState(false);
@@ -223,7 +226,7 @@ export function SpaceSettingsScreen(props: SettingsScreenProps): JSX.Element {
   };
 
   const pickSpace = (key: string): void => {
-    setSpaceKey(key);
+    setChosen(key);
     setDraft(null);
     setSaved(false);
   };
@@ -234,7 +237,7 @@ export function SpaceSettingsScreen(props: SettingsScreenProps): JSX.Element {
     <section className="screen">
       <h2>{t('setTitle')}</h2>
       <p className="small muted">{t('setIntro')}</p>
-      <SpacePicker spaceKey={spaceKey} onChange={pickSpace} />
+      <SpacePicker spaceKey={spaceKey} onChange={pickSpace} spaces={spaces} />
       <SettingsForm working={working} patch={patch} />
       <SaveBar saved={saved} onSave={save} onGotoRegister={props.onGotoRegister} />
     </section>
