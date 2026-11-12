@@ -1,13 +1,16 @@
 // Registre : table triable, filtrable, navigable au clavier, WCAG AA (§10).
 // C'est exactement la même information que le bâtiment, mais accessible.
+// Les réglages d'espace (onglet « Réglages d'espace », PW-24) filtrent les
+// lignes : familles actives, seuil, exclusions — effet local, rien n'est envoyé.
 
 import { useState } from 'react';
 import { FAMILY_LABELS } from '@placard-wiki/domain';
-import type { FoyerState, RegistryRow, WikiFamily } from '@placard-wiki/domain';
+import type { FoyerState, RegistryRow, SpaceSettings, WikiFamily } from '@placard-wiki/domain';
 import { useLang } from '../i18n.js';
 import type { DictKey } from '../i18n-dict.js';
-import { SPACES, STATE_KEYS } from '../data/demo.js';
+import { FOYERS, SPACES, STATE_KEYS } from '../data/demo.js';
 import { REGISTRY_ROWS } from '../data/demo-site.js';
+import { settingsAllow } from '../data/settings.js';
 import { DangerBadge, FamilyLabel, StateBadge } from '../ui.js';
 
 type SortKey = 'spaceKey' | 'family' | 'state' | 'score' | 'readersHigh' | 'pageTitle';
@@ -35,6 +38,13 @@ function filterRows(rows: RegistryRow[], f: Filters): RegistryRow[] {
       (f.state === '' || r.state === f.state) &&
       r.score >= f.minScore,
   );
+}
+
+/** Filtre les lignes selon les réglages de chaque espace (PW-24). */
+function applySettings(rows: RegistryRow[], settings?: Record<string, SpaceSettings>): RegistryRow[] {
+  if (!settings) return rows;
+  const fpOf = (foyerId: string): string => FOYERS[foyerId]?.fingerprint ?? '';
+  return rows.filter((row) => settingsAllow(settings[row.spaceKey], row, fpOf));
 }
 
 /** Trie une copie stable des lignes selon la colonne et la direction. */
@@ -67,49 +77,76 @@ function HeaderCell(props: {
   );
 }
 
-interface RegisterProps {
-  onOpenFoyer: (id: string) => void;
+/** Note de réglages : registre filtré + espaces en mode démo (§15). */
+function SettingsNote({ settings }: { settings: Record<string, SpaceSettings> }): JSX.Element {
+  const { t } = useLang();
+  const demoSpaces = Object.values(settings)
+    .filter((s) => s.demoMode)
+    .map((s) => s.spaceKey)
+    .join(', ');
+  return <p className="small muted">{t('registerSettingsNote').replace('{spaces}', demoSpaces)}</p>;
 }
 
-export function RegisterScreen({ onOpenFoyer }: RegisterProps): JSX.Element {
+/** La table elle-même — mêmes colonnes qu'avant, extraites pour la lisibilité. */
+function RegistryTable(props: {
+  visible: RegistryRow[];
+  sort: SortState;
+  toggleSort: (col: SortKey) => void;
+  onOpen: (id: string) => void;
+}): JSX.Element {
+  const { t } = useLang();
+  return (
+    <table className="registry">
+      <caption>
+        {t('resultsCount').replace('{n}', String(props.visible.length))} · {t('sortHelp')}
+      </caption>
+      <thead>
+        <tr>
+          <HeaderCell col="spaceKey" sort={props.sort} onSort={props.toggleSort} label={t('colSpace')} />
+          <HeaderCell col="pageTitle" sort={props.sort} onSort={props.toggleSort} label={t('colPage')} />
+          <HeaderCell col="family" sort={props.sort} onSort={props.toggleSort} label={t('colFamily')} />
+          <HeaderCell col="state" sort={props.sort} onSort={props.toggleSort} label={t('colState')} />
+          <HeaderCell col="score" sort={props.sort} onSort={props.toggleSort} label={t('colScore')} />
+          <th scope="col">{t('colGite')}</th>
+          <HeaderCell col="readersHigh" sort={props.sort} onSort={props.toggleSort} label={t('colReaders')} />
+          <th scope="col">{t('colAction')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {props.visible.length === 0 && (
+          <tr>
+            <td colSpan={8}>{t('noFoyer')}</td>
+          </tr>
+        )}
+        {props.visible.map((row) => (
+          <Row key={row.foyerId} row={row} onOpen={props.onOpen} />
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+interface RegisterProps {
+  onOpenFoyer: (id: string) => void;
+  /** Réglages d'espace partagés (onglet « Réglages d'espace ») — optionnels. */
+  settings?: Record<string, SpaceSettings>;
+}
+
+export function RegisterScreen({ onOpenFoyer, settings }: RegisterProps): JSX.Element {
   const { t } = useLang();
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [sort, setSort] = useState<SortState>({ key: 'score', dir: 'desc' });
-  const visible = sortRows(filterRows(REGISTRY_ROWS, filters), sort);
+  const rows = applySettings(REGISTRY_ROWS, settings);
+  const visible = sortRows(filterRows(rows, filters), sort);
   const toggleSort = (col: SortKey): void => setSort((s) => ({ key: col, dir: s.key === col && s.dir === 'desc' ? 'asc' : 'desc' }));
 
   return (
     <section className="screen">
       <h2>{t('tabRegister')}</h2>
       <p className="small muted">{t('registerCaption')}</p>
+      {settings && <SettingsNote settings={settings} />}
       <FilterBar filters={filters} setFilters={setFilters} />
-      <table className="registry">
-        <caption>
-          {t('resultsCount').replace('{n}', String(visible.length))} · {t('sortHelp')}
-        </caption>
-        <thead>
-          <tr>
-            <HeaderCell col="spaceKey" sort={sort} onSort={toggleSort} label={t('colSpace')} />
-            <HeaderCell col="pageTitle" sort={sort} onSort={toggleSort} label={t('colPage')} />
-            <HeaderCell col="family" sort={sort} onSort={toggleSort} label={t('colFamily')} />
-            <HeaderCell col="state" sort={sort} onSort={toggleSort} label={t('colState')} />
-            <HeaderCell col="score" sort={sort} onSort={toggleSort} label={t('colScore')} />
-            <th scope="col">{t('colGite')}</th>
-            <HeaderCell col="readersHigh" sort={sort} onSort={toggleSort} label={t('colReaders')} />
-            <th scope="col">{t('colAction')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {visible.length === 0 && (
-            <tr>
-              <td colSpan={8}>{t('noFoyer')}</td>
-            </tr>
-          )}
-          {visible.map((row) => (
-            <Row key={row.foyerId} row={row} onOpen={onOpenFoyer} />
-          ))}
-        </tbody>
-      </table>
+      <RegistryTable visible={visible} sort={sort} toggleSort={toggleSort} onOpen={onOpenFoyer} />
     </section>
   );
 }

@@ -163,6 +163,15 @@ importers:
       '@placard-wiki/domain':
         specifier: workspace:*
         version: link:../packages/domain
+      '@placard-wiki/exposure':
+        specifier: workspace:*
+        version: link:../packages/exposure
+      '@placard-wiki/propagation':
+        specifier: workspace:*
+        version: link:../packages/propagation
+      '@placard-wiki/ritual':
+        specifier: workspace:*
+        version: link:../packages/ritual
       react:
         specifier: ^18.3.1
         version: 18.3.1

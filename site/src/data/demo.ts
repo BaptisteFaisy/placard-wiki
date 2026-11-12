@@ -27,14 +27,14 @@ import type {
 } from '@placard-wiki/domain';
 
 /** Un terme du score appliqué à un foyer, avec sa preuve concrète. */
-interface TermSeed {
+export interface TermSeed {
   id: ScoreTermId;
   points: number;
   evidence?: string;
 }
 
 /** Bâtit un terme appliqué : libellé et méthode repris du domaine (§8). */
-function applied(seed: TermSeed): AppliedScoreTerm {
+export function applied(seed: TermSeed): AppliedScoreTerm {
   const spec = SCORE_TERM_BY_ID.get(seed.id);
   if (!spec) throw new Error(`Terme inconnu : ${String(seed.id)}`);
   return {
@@ -47,7 +47,7 @@ function applied(seed: TermSeed): AppliedScoreTerm {
 }
 
 /** Construit un emplacement de foyer à partir de son conteneur et de son champ. */
-function loc(
+export function loc(
   id: string,
   foyerId: string,
   containerType: ContainerType,
@@ -73,13 +73,13 @@ function loc(
 }
 
 /** Terme de base par famille, transformé en base applicative du score. */
-function baseTerm(family: WikiFamily): AppliedScoreTerm {
+export function baseTerm(family: WikiFamily): AppliedScoreTerm {
   const points = BASE_SCORE_BY_FAMILY[family];
   return { id: 'base-family', points, label: 'Base par famille', method: '20 – 55 selon la famille (BASE_SCORE_BY_FAMILY).', evidence: `${points} pts` };
 }
 
 /** Assemble un foyer : base + termes, score borné par le domaine. */
-function buildFoyer(
+export function buildFoyer(
   f: Omit<Foyer, 'baseScore' | 'score' | 'scoreTerms'>,
   terms: AppliedScoreTerm[],
 ): Foyer {
