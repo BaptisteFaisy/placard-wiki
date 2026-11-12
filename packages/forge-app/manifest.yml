@@ -127,8 +127,14 @@ modules:
         - claude
 
   # ---------------------------------------------------------------------- écrans
-  # Formes validées par `forge lint` le 12 novembre 2026 : un écran Confluence
-  # UI Kit = {key, title, route?, function} — pas de render/resource/resolver.
+  # Forme UI Kit actuelle (UI Kit 1 dépréciée depuis le 28 février 2025) :
+  # un écran Confluence = {key, title, route?, resource, resolver, render}.
+  #   - `resource` désigne l'entrée d'écran (`.tsx`) déclarée dans `resources:` ;
+  #   - `resolver.function` désigne la fonction backend qui sert les données
+  #     (le résolveur unique, 20 méthodes du bridge `@placard-wiki/domain`) ;
+  #   - `render: native` = composants UI Kit Atlassian (`@forge/react`).
+  # Source : schéma `@forge/manifest` (branche « resource » de chaque
+  # `oneOf`) et l'app sœur `tickets-pieges` (même atelier, déployée).
   # `confluence:spaceSettingsPage` et `confluence:macro` N'EXISTENT PAS : les
   # vrais modules sont `confluence:spaceSettings` et `confluence:customContent`.
   # Le bâtiment, le registre, le budget, l'adoption, le certificat (§18).
@@ -136,20 +142,29 @@ modules:
     - key: placard-global
       title: Placard
       route: placard
-      function: resolver
+      render: native
+      resource: placard-global
+      resolver:
+        function: resolver
 
   # Réglages par espace : familles, seuils, exclusions, politique de purge (§18).
   confluence:spaceSettings:
     - key: placard-space-settings
       title: Placard — réglages de l'espace
       route: placard-settings
-      function: resolver
+      render: native
+      resource: placard-space-settings
+      resolver:
+        function: resolver
 
   # Encart sur la page : « 2 foyers, danger max 74 » (§18).
   confluence:contentAction:
     - key: placard-content-action
       title: Foyers sur cette page
-      function: resolver
+      render: native
+      resource: placard-content-action
+      resolver:
+        function: resolver
 
   # Certificat et état d'un foyer dans une page (§18) — via customContent
   # (le module macro n'existe pas dans le schéma du 12 novembre 2026).
@@ -159,7 +174,10 @@ modules:
       description: Affiche le certificat daté d'un espace, ou l'état d'un foyer.
       supportedContainerTypes:
         - page
-      function: resolver
+      render: native
+      resource: placard-certificate
+      resolver:
+        function: resolver
 
   # -------------------------------------------------------------------- webtrigger
   # Deux canaux publics : les demandes de purge (admin) et la chaîne live
@@ -482,9 +500,18 @@ modules:
         - dismiss-finding
         - open-remediation-ticket
 
-# Les écrans UI Kit sont rendus par la fonction `resolver` (pas de resources
-# séparées — forme validée par `forge lint` le 12 novembre 2026). Les fichiers
-# d'écran (src/ui/*.tsx) sont importés par le résolveur dans le bundle.
+# Entrées d'écran UI Kit : chaque `resource` d'un module Confluence pointe
+# vers le fichier `.tsx` rendu dans l'écran (bundle natif du CLI). Le chemin
+# est relatif à ce manifeste (packages/forge-app).
+resources:
+  - key: placard-global
+    path: src/ui/global-page.tsx
+  - key: placard-space-settings
+    path: src/ui/space-settings.tsx
+  - key: placard-content-action
+    path: src/ui/content-action.tsx
+  - key: placard-certificate
+    path: src/ui/certificate-macro.tsx
 
 permissions:
   scopes:
