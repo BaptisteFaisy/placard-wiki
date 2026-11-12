@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Client A2A du daemon ZeroClaw — agent de secours du résolveur de conflits.
 
-Le résolveur de conflits (`.github/fireworks/conflict_agent.py`) interroge par
-défaut l'API Fireworks. Quand cette API refuse (clé expirée, HTTP 412,
+Le résolveur de conflits (`.github/hermes/conflict_agent.py`) interroge par
+défaut l'API du fournisseur (InferHub, `combo/cheap`). Quand cette API refuse (clé expirée, HTTP 412,
 modèle retiré), ce module fournit le **repli local** : le daemon ZeroClaw de
 la machine du runner, alias d'agent `hermes`, via le protocole A2A
 (`POST /a2a/<agent>`, JSON-RPC `SendMessage`).

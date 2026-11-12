@@ -2,7 +2,7 @@
 """Tests ciblés de conflict_agent.py — bibliothèque standard uniquement.
 
 Lance : python3 -m unittest test_conflict_agent -v
-(depuis .github/fireworks/).
+(depuis .github/hermes/).
 """
 import os
 import shutil
@@ -177,7 +177,7 @@ class RebaseLoopTest(unittest.TestCase):
         failed = subprocess.run(["git", "rebase", base_branch],
                                 capture_output=True)
         self.assertNotEqual(failed.returncode, 0)
-        with mock.patch.object(conflict_agent, "fw_complete",
+        with mock.patch.object(conflict_agent, "modele_complete",
                                return_value="```\nRESOLU\n```"):
             resolved = conflict_agent.finish_loop(
                 "http://x", "K", "M", time.time() + 60)
@@ -201,7 +201,7 @@ class RebaseLoopTest(unittest.TestCase):
         failed = subprocess.run(["git", "rebase", base_branch],
                                 capture_output=True)
         self.assertNotEqual(failed.returncode, 0)
-        with mock.patch.object(conflict_agent, "fw_complete",
+        with mock.patch.object(conflict_agent, "modele_complete",
                                return_value="```\nZ\n```"):
             conflict_agent.finish_loop("http://x", "K", "M",
                                        time.time() + 60)
@@ -291,7 +291,7 @@ class DryRunStampTest(unittest.TestCase):
                 mock.patch.object(conflict_agent, "pr_labels", return_value=[]):
             rc = conflict_agent.cmd_resolve(args)
         self.assertEqual(rc, 0)
-        cache = os.path.join(home, ".cache", "fireworks-agent")
+        cache = os.path.join(home, ".cache", "hermes-agent")
         stamps = os.listdir(cache) if os.path.isdir(cache) else []
         self.assertEqual(stamps, [])
 
@@ -311,7 +311,7 @@ class UnionSansModeleTest(unittest.TestCase):
         failed = subprocess.run(["git", "rebase", base_branch],
                                 capture_output=True)
         self.assertNotEqual(failed.returncode, 0)
-        with mock.patch.object(conflict_agent, "fw_complete",
+        with mock.patch.object(conflict_agent, "modele_complete",
                                side_effect=AssertionError("modèle appelé")):
             resolved = conflict_agent.finish_loop(
                 "http://x", "K", "M", time.time() + 60)

@@ -2,7 +2,7 @@
 """Tests ciblés de union_journal.py — bibliothèque standard uniquement.
 
 Lance : python3 -m unittest test_union_journal -v
-(depuis .github/fireworks/).
+(depuis .github/hermes/).
 """
 import os
 import shutil

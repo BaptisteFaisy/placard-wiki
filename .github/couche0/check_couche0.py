@@ -115,7 +115,7 @@ def suggerer_scope(files):
     """Motifs prêts à coller dans `## Scope`, groupés quand le glob est évident.
 
     Un refus sans rien à copier coûte des minutes (aller-retour humain ou agent
-    Fireworks, puis un nouveau run) : ici le garde ne s'assouplit pas, il rend
+    Hermes (jambe InferHub), puis un nouveau run) : ici le garde ne s'assouplit pas, il rend
     la déclaration faisable en un copier-coller. Trois fichiers ou plus du même
     dossier et de même extension deviennent `dossier/*.ext` — `matches()` sait
     déjà le lire.

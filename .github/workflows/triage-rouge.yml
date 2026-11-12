@@ -64,6 +64,11 @@ jobs:
       PR: ${{ inputs.pr || github.event.workflow_run.pull_requests[0].number }}
       RUN_ID: ${{ inputs.run || github.event.workflow_run.id }}
       TEST_AGENT: ${{ vars.TEST_AGENT }}
+      # Jambe modèle : InferHub (`combo/cheap`) via les noms génériques MODEL_* ;
+      # les FIREWORKS_* historiques restent passés en repli.
+      MODEL_API_KEY: ${{ secrets.INFERHUB_API_KEY }}
+      MODEL_NAME: ${{ vars.MODEL_NAME }}
+      MODEL_API_URL: ${{ vars.MODEL_API_URL }}
       FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
       FIREWORKS_MODEL: ${{ vars.FIREWORKS_MODEL }}
       FIREWORKS_BASE_URL: ${{ vars.FIREWORKS_BASE_URL }}
@@ -173,7 +178,7 @@ jobs:
           if [ "${TEST_AGENT:-1}" = "0" ]; then
             echo "TEST_AGENT=0 : réparation désactivée"; exit 0
           fi
-          gh api "repos/$REPO/contents/.github/fireworks/test_agent.py" \
+          gh api "repos/$REPO/contents/.github/hermes/test_agent.py" \
             -H 'Accept: application/vnd.github.raw' > /tmp/agent.py || exit 0
           python3 /tmp/agent.py fix --repo "$REPO" --pr "$PR" \
             --branch "${{ steps.ctx.outputs.branch }}" \

@@ -136,14 +136,19 @@ jobs:
           raise SystemExit(1 if (illisibles or vides) else 0)
           EOF
 
-      # Les gardes de la CI se testent elles-mêmes : couche0, agents de
-      # conflit et de test rouge — stdlib, quelques secondes, aucun réseau.
+      # Les gardes de la CI se testent elles-mêmes : couche0, agents Hermes
+      # (conflits, périmètre, jambe InferHub) et triage rouge — stdlib,
+      # quelques secondes, aucun réseau, aucune clé.
       - name: Tests des gardes CI
         shell: bash
         run: |
           set -euo pipefail
+          python3 .github/hermes/sonde.py --selftest
           python3 .github/hermes/test_a2a.py
+          python3 .github/hermes/test_conflict_agent.py
+          python3 .github/hermes/test_provider.py
+          python3 .github/hermes/test_quota.py
+          python3 .github/hermes/test_scope_agent.py
+          python3 .github/hermes/test_union_journal.py
           python3 tools/test_triage.py
           python3 .github/couche0/test_check_couche0.py
-          python3 .github/fireworks/test_conflict_agent.py
-          python3 .github/fireworks/test_provider.py

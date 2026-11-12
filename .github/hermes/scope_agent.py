@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Agent de périmètre Fireworks pour la file pr-auto-merge.
+"""Agent de périmètre Hermes pour la file pr-auto-merge (jambe InferHub).
 
 Une PR dont le corps n'a pas de `## Scope`, ou dont la section ne couvre pas
 tous les fichiers modifiés, est refusée par `couche0` : le balayeur la voit
 `BLOCKED` et, sans ce script, la laisse pourrir — c'est exactement ce qui est
 arrivé aux PR d'auteur (Gaïa, 29/10).
 
-Ici un modèle Fireworks lit le diff et rédige une puce
+Ici un modèle (InferHub `combo/cheap`) lit le diff et rédige une puce
 ``- `chemin` — raison`` par fichier, en français. Le script vérifie le corps
 recomposé avec le garde de `main` lui-même (importé, jamais réécrit) avant
 de l'écrire : tout fichier non déclaré et toute déclaration inutile restent
@@ -15,7 +15,7 @@ manquante qui est écrite, avec une raison tirée du diff.
 
 Bibliothèque standard uniquement. Usage :
 
-  FIREWORKS_API_KEY=... python3 scope_agent.py fix \\
+  MODEL_API_KEY=... python3 scope_agent.py fix \\
       --repo BaptisteFaisy/placard-wiki --pr 215 --sha <tête> \\
       --guard /tmp/check_couche0.py
 
@@ -33,15 +33,22 @@ import subprocess
 import sys
 import urllib.request
 
-MODEL_DEFAULT = "accounts/fireworks/models/minimax-m3p1-flash"
-API_DEFAULT = "https://api.fireworks.ai/inference/v1/chat/completions"
+# Réglages du modèle : UNE seule définition, chez le voisin `fournisseur.py`
+# (InferHub `combo/cheap` par défaut, noms génériques `MODEL_*` prioritaires sur
+# les historiques `FIREWORKS_*`). Le balayeur extrait tout le dossier
+# `.github/hermes` d'`origin/main` dans un dossier temporaire : l'import direct
+# fonctionne, `sys.path[0]` est ce dossier (idem en exécution locale).
+import fournisseur  # noqa: E402 — module voisin, pas un paquet installé
+
+MODEL_DEFAULT = fournisseur.MODEL_DEFAULT
+API_DEFAULT = fournisseur.API_DEFAULT
 MAX_FILES = 25
 MAX_EXCERPT_CHARS = 600
 MAX_EXCERPT_LINES = 5
 MAX_TOKENS = 3_000
 TEMPERATURE = 0.1
 CALL_TIMEOUT_S = 90
-COMMENT_PREFIX = "_fireworks · agent de périmètre (MiniMax M3.1 Flash)_"
+COMMENT_PREFIX = "_hermes · agent de périmètre (InferHub combo/cheap)_"
 MARKER = "<!-- automerge-scope sha=%s -->"
 LABEL_HUMAN = "intervention-humaine"
 PUCE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+`?([^`\s]+)`?"
@@ -60,10 +67,7 @@ def log(message):
     print("scope-agent: %s" % message, flush=True)
 
 
-def env_or(name, default):
-    """Variable d'env ou défaut. GitHub injecte une var absente comme ""
-    (et non unset) : `os.environ.get(n, d)` rendrait "" → 400 Fireworks."""
-    return os.environ.get(name) or default
+env_or = fournisseur.env_or  # une seule définition, chez le fournisseur
 
 
 def sh(args, timeout=90):
@@ -151,8 +155,8 @@ def messages_pour(pr, fichiers, necessaires, relance=False):
             {"role": "user", "content": "\n\n".join(blocs)}]
 
 
-def fw_complete(api_url, key, model, messages):
-    """Un appel chat/completions Fireworks, rend le texte réponse."""
+def modele_complete(api_url, key, model, messages):
+    """Un appel chat/completions au fournisseur, rend le texte réponse."""
     payload = json.dumps({"model": model, "messages": messages,
                           "temperature": TEMPERATURE,
                           "max_tokens": MAX_TOKENS}).encode("utf-8")
@@ -163,11 +167,11 @@ def fw_complete(api_url, key, model, messages):
         with urllib.request.urlopen(req, timeout=CALL_TIMEOUT_S) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except Exception as exc:                                   # noqa: BLE001
-        raise AgentError("appel Fireworks : %s" % str(exc)[:200])
+        raise AgentError("appel du fournisseur : %s" % str(exc)[:200])
     try:
         return data["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError):
-        raise AgentError("réponse Fireworks illisible (pas de choices[0])")
+        raise AgentError("réponse du fournisseur illisible (pas de choices[0])")
 
 
 def raisons_repondue(texte):
@@ -280,14 +284,21 @@ def ecrire_corps(repo, pr, corps):
 
 
 def verifier_reglages():
-    """Clés et coupe-circuit ; lève Skip si l'agent doit se taire."""
-    key = env_or("FIREWORKS_API_KEY", "")
-    if env_or("FIREWORKS_AGENT_SCOPE", "1") == "0":
-        raise Skip("agent de périmètre coupé (FIREWORKS_AGENT_SCOPE=0)")
+    """Clé, modèle et URL du fournisseur ; lève Skip si l'agent doit se taire.
+
+    Les réglages viennent de `fournisseur.provider_settings()` — les mêmes que
+    le résolveur de conflits : une seule source, aucun réglage en double.
+    Coupe-circuit `HERMES_AGENT_SCOPE=0` (le nom historique `FIREWORKS_AGENT_SCOPE`
+    reste accepté).
+    """
+    if env_or("HERMES_AGENT_SCOPE", "") == "0" \
+            or env_or("FIREWORKS_AGENT_SCOPE", "1") == "0":
+        raise Skip("agent de périmètre coupé (HERMES_AGENT_SCOPE=0)")
+    key, model, api_url = fournisseur.provider_settings()
     if not key:
-        raise Skip("FIREWORKS_API_KEY absent : périmètre laissé à l'auteur")
-    return (key, env_or("FIREWORKS_MODEL", MODEL_DEFAULT),
-            env_or("FIREWORKS_BASE_URL", API_DEFAULT))
+        raise Skip("aucune clé de modèle (MODEL_API_KEY ou FIREWORKS_API_KEY) : "
+                   "périmètre laissé à l'auteur")
+    return key, model, api_url
 
 
 def contexte(args, garde):
@@ -352,7 +363,7 @@ def cmd_fix(args):
         print(messages[1]["content"][:6_000])
         return 0
     log("rédaction du périmètre (%d fichiers)" % len(necessaires))
-    texte = fw_complete(api_url, key, model,
+    texte = modele_complete(api_url, key, model,
                         messages_pour({"title": titre, "body": corps},
                                       fichiers, necessaires))
     couverts, manquants = rapprocher(raisons_repondue(texte), necessaires, garde)
@@ -360,7 +371,7 @@ def cmd_fix(args):
         # Relance ciblée : les fichiers oubliés, seuls, avec le diff sous les
         # yeux. Une omission du modèle ne doit pas coûter la PR.
         log("relance ciblée : %d fichier(s) sans puce" % len(manquants))
-        texte2 = fw_complete(api_url, key, model,
+        texte2 = modele_complete(api_url, key, model,
                              messages_pour({"title": titre, "body": corps},
                                            fichiers, manquants, relance=True))
         trouves, manquants = rapprocher(raisons_repondue(texte2), manquants, garde)

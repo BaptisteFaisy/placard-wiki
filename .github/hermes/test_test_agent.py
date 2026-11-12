@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests ciblés de test_agent.py — bibliothèque standard uniquement.
 
-Lance : python3 .github/fireworks/test_test_agent.py
+Lance : python3 .github/hermes/test_test_agent.py
 """
 import os
 import shutil

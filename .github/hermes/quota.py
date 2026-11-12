@@ -2,7 +2,7 @@
 """Quota de saisines du modèle : empreintes, cooldown, plafonds.
 
 Les runners changent d'un passage à l'autre : les empreintes vivent dans
-`~/.cache/fireworks-agent`, jamais dans le clone. Deux plafonds : global
+`~/.cache/hermes-agent`, jamais dans le clone. Deux plafonds : global
 (`SPAWN_CAP` par heure) et par PR (`SAISINES_PR_MAX` en 30 min). Le second est
 né du 29/10 : #215, rebasée en boucle, a mangé tout le quota horaire et l'agent
 s'est tu pour les autres PR.
@@ -27,7 +27,7 @@ class Saisine(Exception):
 
 
 def cache_dir():
-    chemin = os.path.join(os.path.expanduser("~"), ".cache", "fireworks-agent")
+    chemin = os.path.join(os.path.expanduser("~"), ".cache", "hermes-agent")
     os.makedirs(chemin, exist_ok=True)
     return chemin
 

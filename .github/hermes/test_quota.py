@@ -2,7 +2,7 @@
 """Tests ciblés de quota.py — bibliothèque standard uniquement.
 
 Lance : python3 -m unittest test_quota -v
-(depuis .github/fireworks/).
+(depuis .github/hermes/).
 """
 import os
 import shutil

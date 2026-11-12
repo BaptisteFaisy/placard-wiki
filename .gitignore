@@ -23,3 +23,11 @@ coverage/
 *.log
 npm-debug.log*
 pnpm-debug.log*
+
+# Bytecode Python : les gardes et les agents Hermes sont en stdlib, leurs .pyc
+# ne se versionnent jamais (leçon d'un dépôt voisin : un .pyc suivi a valu une
+# PR de nettoyage).
+__pycache__/
+*.py[cod]
+.pytest_cache/
+

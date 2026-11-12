@@ -12,13 +12,14 @@
 # propre au lieu d'échouer. Poussée avec bail (lease) : jamais d'écrasement
 # d'un push d'auteur arrivé entre-temps. Forks exclus ; brouillons rebasés
 # et réconciliés mais jamais mergés.
-# Conflits (v5, 2026-10-28) : l'agent Fireworks tente de les résoudre
-# (.github/fireworks/conflict_agent.py, modèle MiniMax M3.1 Flash) : résolution
+# Conflits (v5, 2026-10-28) : l'agent Hermes tente de les résoudre
+# (.github/hermes/conflict_agent.py, jambe InferHub combo/cheap) : résolution
 # conflit par conflit, fin du rebase, push avec bail, compte rendu sur la PR.
-# Sans le secret FIREWORKS_API_KEY, on saute comme avant et l'auteur rebase à
-# la main. Coupe-circuit : variable de dépôt FIREWORKS_AGENT_RESOLVE=0.
+# Sans le secret INFERHUB_API_KEY (repli historique : FIREWORKS_API_KEY), on
+# saute comme avant et l'auteur rebase à la main. Coupe-circuit : variable de
+# dépôt HERMES_AGENT_RESOLVE=0 (l'historique FIREWORKS_AGENT_RESOLVE est lu aussi).
 # Conflits brouillons (v6, 2026-10-28) : le sweep traite aussi les brouillons
-# (rebase + agent Fireworks) sans jamais les merger, et les DIRTY comme les
+# (rebase + agent Hermes) sans jamais les merger, et les DIRTY comme les
 # BEHIND — la CI est la seule voie de résolution (plus de janitor local).
 # Auth push (v7, 2026-10-28) : PAT dans l'URL (x-access-token) au lieu du
 # helper gh, qui rend 403 « denied » sur les runners alors que l'API écrit.
@@ -41,7 +42,7 @@
 #   - échec réel (étape de tests rouge) → aucune relance inutile, un
 #     commentaire dit quelle étape est en cause, une fois par tête ;
 #   - `couche0` rouge sur le périmètre → l'agent de périmètre
-#     (.github/fireworks/scope_agent.py) rédige la déclaration manquante depuis
+#     (.github/hermes/scope_agent.py) rédige la déclaration manquante depuis
 #     le diff et la vérifie avec le garde de main AVANT d'écrire le corps
 #     (le garde n'est pas assoupli : fichier non déclaré et déclaration inutile
 #     restent refusés) ; l'édition du corps relance `couche0` ;
@@ -75,7 +76,7 @@
 #      file, les met à jour contre `main` et rejoue les checks sur l'arbre
 #      fusionné du lot. Le balayeur ne merge plus et ne rebase plus ; il ne
 #      garde que ce qu'une file ne sait pas faire — conflit (`DIRTY`, rebase +
-#      agent Fireworks), panne d'infrastructure (`BLOCKED`, relance bornée), et
+#      agent Hermes), panne d'infrastructure (`BLOCKED`, relance bornée), et
 #      **branche non linéaire** (v16) : une PR qui a mergé `main` au lieu de
 #      le rebaser n'est pas `BEHIND`, la file la prend puis GitHub refuse son
 #      rebase-merge (`GITHUB_REBASE_MERGE_REFUSED`) ; on la linéarise avant.
@@ -180,7 +181,7 @@
 #       périmé), le run `couche0` en échec est relancé — une fois par tête
 #       (marque `automerge-scope-rerun`) — car le garde relit le corps courant
 #       via l'API. Non-régression : `InvocationSweepTest` dans
-#       `.github/fireworks/test_scope_agent.py` (la CI le lance déjà).
+#       `.github/hermes/test_scope_agent.py` (la CI le lance déjà).
 #   v28 (01/11) échec réel après relances : « 2 relances déjà faites, on
 #       s'arrête là » fermait aussi la porte de l'agent fw, et le mot
 #       « périmètre » dans la regex d'infra classait l'étape « Tests des
@@ -459,6 +460,15 @@ jobs:
           # `github-actions[bot]` n'a pas le droit de commander à Mergify.
           GH_TOKEN: ${{ github.token }}
           GH_ECRITURE: ${{ secrets.AUTOMERGE_PAT }}
+          # Jambe modèle des agents Hermes : InferHub (`combo/cheap`). Les noms
+          # génériques MODEL_* sont ceux que lit `fournisseur.provider_settings()` ;
+          # les FIREWORKS_* restent passés en repli historique (rien n'est cassé si
+          # INFERHUB_API_KEY manque sur une installation ancienne).
+          MODEL_API_KEY: ${{ secrets.INFERHUB_API_KEY }}
+          MODEL_NAME: ${{ vars.MODEL_NAME }}
+          MODEL_API_URL: ${{ vars.MODEL_API_URL }}
+          HERMES_AGENT_RESOLVE: ${{ vars.HERMES_AGENT_RESOLVE }}
+          HERMES_AGENT_SCOPE: ${{ vars.HERMES_AGENT_SCOPE }}
           FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
           FIREWORKS_MODEL: ${{ vars.FIREWORKS_MODEL }}
           FIREWORKS_AGENT_RESOLVE: ${{ vars.FIREWORKS_AGENT_RESOLVE }}
@@ -847,9 +857,8 @@ jobs:
                && [ "${TEST_AGENT:-1}" != "0" ] \
                && [ "${TRIAGE_TEST:-1}" = "0" ]; then
               rc2=0
-              git show origin/main:.github/fireworks/test_agent.py \
-                > /tmp/fw-test-agent.py 2>/dev/null \
-                && python3 /tmp/fw-test-agent.py fix --repo "$REPO" \
+              extraire_hermes \
+                && python3 /tmp/hermes/test_agent.py fix --repo "$REPO" \
                      --pr "$pr" --branch "$BRANCH" --sha "$SHA" || rc2=$?
               case "$rc2" in
                 0) printf -v corps '%s\n%s' "$corps" \
@@ -886,7 +895,7 @@ jobs:
             # un conflit. Posé dans `info/attributes` et pas seulement dans
             # `.gitattributes` : une branche ancienne ne porte pas encore le
             # fichier, et c'est justement elle qui conflicte. Sans ça, chaque
-            # mouvement de `main` relançait l'agent Fireworks sur CHANGELOG.md
+            # mouvement de `main` relançait l'agent Hermes sur CHANGELOG.md
             # → un push → une CI → un mouvement de `main` (livelock, 29/10).
             printf 'CHANGELOG.md merge=union\n' >> .git/info/attributes
             # Identité du propriétaire (règle du dépôt) : un commit poussé par
@@ -896,7 +905,23 @@ jobs:
             export GIT_EDITOR=true
             CLONE_FAIT=1
           }
-          rebaser() { # rebase la PR sur main ; l'agent Fireworks résout les conflits
+          extraire_hermes() { # modules Hermes d'`origin/main` → /tmp/hermes (0 = prêt)
+            # Toute la famille d'un coup, et non module par module : les agents
+            # s'importent entre voisins (`scope_agent` lit ses réglages dans
+            # `fournisseur`), il faut donc que le dossier soit complet à côté du
+            # script lancé. Toujours depuis `origin/main` — un juge ne s'écrit pas
+            # dans le prétoire (jamais depuis la branche de la PR).
+            [ -n "${HERMES_EXTRAIT:-}" ] && return 0
+            rm -rf /tmp/hermes
+            mkdir -p /tmp/hermes || return 1
+            local f
+            for f in $(git ls-tree --name-only origin/main .github/hermes/); do
+              git show "origin/main:$f" > "/tmp/hermes/${f##*/}" 2>/dev/null || return 1
+            done
+            [ -s /tmp/hermes/fournisseur.py ] || return 1
+            HERMES_EXTRAIT=1
+          }
+          rebaser() { # rebase la PR sur main ; l'agent Hermes résout les conflits
               if git fetch -q "$AUTH_URL" "pull/$PR/head:pr-$PR" 2>/dev/null \
                 && git checkout -q "pr-$PR" 2>/dev/null \
                 && git rebase -q origin/main >/dev/null 2>&1; then
@@ -917,14 +942,13 @@ jobs:
                 # `@github-actions[bot]` et les workflows partent en
                 # `action_required` (aucun check requis, PR `BLOCKED` — vu sur
                 # #634 le 31/10). `auto-approve.yml` reste le filet.
-                git show origin/main:.github/fireworks/conflict_agent.py \
-                  > /tmp/fw-agent.py 2>/dev/null \
-                  && GH_TOKEN="$GH_ECRITURE" python3 /tmp/fw-agent.py resolve --repo "$REPO" \
+                extraire_hermes \
+                  && GH_TOKEN="$GH_ECRITURE" python3 /tmp/hermes/conflict_agent.py resolve --repo "$REPO" \
                     --pr "$PR" --branch "$BRANCH" --sha "$SHA" || rc=$?
                 git rebase --abort >/dev/null 2>&1 || true
                 git checkout -q main 2>/dev/null || true
                 case "$rc" in
-                  0) echo "PR #$PR : conflit résolu par l'agent Fireworks" ;;
+                  0) echo "PR #$PR : conflit résolu par l'agent Hermes" ;;
                   *) echo "PR #$PR sautée (conflit, à l'auteur de rebaser)" ;;
                 esac
               fi
@@ -1142,11 +1166,10 @@ jobs:
                       # (même cause que l'agent de conflit en v21 — vécu sur
                       # #688 : fix écrit, aucun run derrière, PR BLOCKED sur un
                       # verdict périmé).
-                      git show origin/main:.github/fireworks/scope_agent.py \
-                        > /tmp/fw-scope.py 2>/dev/null \
+                      extraire_hermes \
                         && git show origin/main:.github/couche0/check_couche0.py \
                           > /tmp/couche0.py 2>/dev/null \
-                        && GH_TOKEN="$GH_ECRITURE" python3 /tmp/fw-scope.py fix --repo "$REPO" --pr "$PR" \
+                        && GH_TOKEN="$GH_ECRITURE" python3 /tmp/hermes/scope_agent.py fix --repo "$REPO" --pr "$PR" \
                           --sha "$SHA" --guard /tmp/couche0.py || rc=$?
                       case "$rc" in
                         0) echo "PR #$PR : périmètre complété, couche0 va rejuger" ;;
