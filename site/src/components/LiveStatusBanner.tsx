@@ -59,15 +59,17 @@ export function LiveStatusBanner(): JSX.Element {
     text = `${t('liveBadgeLoading')} — ${t('liveSnapshotNote')}`;
   } else {
     const why = reasonKey ? t(reasonKey) : t('liveReasonUnknown');
-    text = `${t('snapshotBadge')} — ${t('liveSnapshotNote')} (${why})`;
+    text = `${t('snapshotBadge')} — ${t('liveSnapshotNote')} (${t('liveSnapshotReason').replace('{reason}', why)})`;
   }
 
   return (
     <div className={`live-status ${live ? 'live-status-live' : 'live-status-snapshot'}`} aria-live="polite">
       <span className="live-status-text">{text}</span>
-      <span className="live-status-extra">
-        {live ? `${t('liveAutoRefreshNote')} — ${t('liveDemoSiteWarning')}` : t('liveSnapshotNote')}
-      </span>
+      {live && (
+        <span className="live-status-extra">
+          {t('liveAutoRefreshNote')} — {t('liveDemoSiteWarning')}
+        </span>
+      )}
       <button type="button" className="live-refresh" onClick={refresh} disabled={refreshing}>
         {refreshing ? t('liveRefreshing') : t('liveRefresh')}
       </button>
