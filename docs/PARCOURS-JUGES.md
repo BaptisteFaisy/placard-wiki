@@ -5,7 +5,7 @@
 > vous devez voir si le produit tient sa promesse.
 >
 > Deux entrées possibles, aucune installation obligatoire :
-> le **site public** (<https://baptistefaisy.github.io/placard-wiki/>) et
+> le **site public** (<https://tradoooo.github.io/placard-wiki/>) et
 > l'**app installée** sur le site de démonstration
 > (<https://one-atlas-cndz.atlassian.net/wiki/apps/dc47d23f-e4cd-4681-bb64-14ac02ea1c98/187530d6-48dd-414c-8215-ee19afe04033/placard>).
 > La minute 0 se fait sur le site public ; les minutes 6 à 8 se font dans
@@ -21,7 +21,7 @@
 
 | Minute | Où | Ce que vous devez voir |
 |---|---|---|
-| 0 | [site public](https://baptistefaisy.github.io/placard-wiki/) | l'accueil, 16 onglets, aucune installation |
+| 0 | [site public](https://tradoooo.github.io/placard-wiki/) | l'accueil, 16 onglets, aucune installation |
 | 1 – 2 | onglet **Registre** | bandeau **LIVE**, **24 foyers réels**, 40 emplacements, danger max 70 |
 | 2 – 4 | onglet **Fiche foyer** | les **termes du score** avec leur méthode, l'exposition en fourchette |
 | 4 – 6 | onglet **Rituel (démo locale)** | le **verrou PW-09**, le caviardage masqué, la **purge impossible et documentée** |
@@ -33,7 +33,7 @@
 
 ## Minute 0 · Ouvrez le site public
 
-**Lien** : <https://baptistefaisy.github.io/placard-wiki/>
+**Lien** : <https://tradoooo.github.io/placard-wiki/>
 
 **Action** : ouvrez l'adresse. Basculez **FR / EN** en haut à droite (le site
 est bilingue). Ne rien installer.
@@ -53,7 +53,7 @@ morts.
 
 ## Minute 1 – 2 · Le bandeau LIVE et les 24 lignes réelles
 
-**Lien** : <https://baptistefaisy.github.io/placard-wiki/> → onglet **Registre**
+**Lien** : <https://tradoooo.github.io/placard-wiki/> → onglet **Registre**
 
 **Action** : lisez le bandeau en haut, puis le registre.
 
@@ -83,7 +83,7 @@ morts.
 
 ## Minute 2 – 4 · Un foyer, ses termes de score, son exposition
 
-**Lien** : <https://baptistefaisy.github.io/placard-wiki/> → onglet **Registre**
+**Lien** : <https://tradoooo.github.io/placard-wiki/> → onglet **Registre**
 → cliquez la ligne de danger 70 → onglet **Fiche foyer**
 
 **Action** : ouvrez la fiche du foyer le plus dangereux et lisez-la de haut
@@ -114,7 +114,7 @@ en bas.
 
 ## Minute 4 – 6 · Le rituel : le verrou, le caviardage, la purge impossible
 
-**Lien** : <https://baptistefaisy.github.io/placard-wiki/> → onglet **Rituel
+**Lien** : <https://tradoooo.github.io/placard-wiki/> → onglet **Rituel
 (démo locale)** — ou, dans l'app installée, la macro **Placard** sur une page
 de l'espace `PLACARDDEMO`
 (<https://one-atlas-cndz.atlassian.net/wiki/spaces/PLACARDDEMO>).
@@ -180,7 +180,7 @@ de l'espace `PLACARDDEMO`
 
 ## Minute 8 – 9 · Le playground MCP : `check-text` et `trace-fingerprint`
 
-**Lien** : <https://baptistefaisy.github.io/placard-wiki/> → onglet
+**Lien** : <https://tradoooo.github.io/placard-wiki/> → onglet
 **Playground MCP** (13 outils listés à gauche)
 
 **Action** : deux appels.
@@ -203,7 +203,7 @@ l'installation. Deux refus à connaître : `record-rotation` **refuse un agent**
 
 ## Minute 9 – 10 · Les cinq questions à l'agent Rovo
 
-**Lien** : <https://baptistefaisy.github.io/placard-wiki/> → onglet **Agent
+**Lien** : <https://tradoooo.github.io/placard-wiki/> → onglet **Agent
 Rovo** — ou, dans l'app installée, **Rovo Chat** → agent **« Gardien du
 placard »**.
 
@@ -256,7 +256,7 @@ morts, jamais un verdict.
 **Le repli est le site public.** Le site est statique : il ne dépend ni de
 l'app installée, ni d'un compte, ni d'un jeton. Si l'app Forge ne s'ouvre
 pas, si l'espace `PLACARDDEMO` est inaccessible, ou si le réseau est coupé,
-le parcours continue sur <https://baptistefaisy.github.io/placard-wiki/> —
+le parcours continue sur <https://tradoooo.github.io/placard-wiki/> —
 avec le bandeau qui bascule en **SNAPSHOT** et le dit.
 
 | Symptôme | Ce que c'est | Ce que vous pouvez faire |

@@ -9,14 +9,22 @@
 export const LIVE_API_URL =
   'https://268bea73-73bf-4b1e-a3e7-862161c6298a.webtrigger.atlassian.app/public/U3iRFUXiNU509Lv_sk5n7382zbI';
 
-/** Timeout d'une requête live (ms) — au-delà, on bascule sur le snapshot. */
-export const LIVE_TIMEOUT_MS = 8000;
+/** Timeout d'une requête live (ms) — au-delà, on bascule sur le snapshot.
+ * Mesuré le 12/11 : un balayage réel de l'espace répond en ~8 s (55 s au
+ * pire côté plateforme) ; 8 s faisait basculer la démo en snapshot une fois
+ * sur deux. 30 s laisse la place à une passe complète, puis 60 s de
+ * rafraîchissement gardent la donnée « en temps réel ».
+ */
+export const LIVE_TIMEOUT_MS = 30_000;
 
 /** Nombre de nouvel essai après un échec réseau (1 = deux tentatives). */
 export const LIVE_RETRIES = 1;
 
-/** Période d'auto-refresh en mode live (ms) — 2 minutes. */
-export const LIVE_REFRESH_MS = 120_000;
+/** Période d'auto-refresh en mode live (ms) — 1 minute (temps réel).
+ * La plateforme plafonne le webtrigger public à 300 requêtes par fenêtre :
+ * 1 par minute et par visiteur reste très en deçà.
+ */
+export const LIVE_REFRESH_MS = 60_000;
 
 /** Durée de vie du cache mémoire d'une réponse live réussie (ms). */
 export const LIVE_CACHE_TTL_MS = 30_000;
