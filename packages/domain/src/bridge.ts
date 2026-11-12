@@ -74,7 +74,7 @@ export interface RedactionDiff {
 
 /** Couverture par gîte : ce qui est lu, ce qui ne l'est pas, et pourquoi (§19). */
 export interface CoverageReport {
-  perGite: Array<{ gite: string; scanned: number; skipped: number; reason?: string }>;
+  readonly perGite: ReadonlyArray<{ gite: string; scanned: number; skipped: number; reason?: string }>;
   /** Angles morts déclarés : whiteboards, bases Confluence, captures d'écran… */
   blindSpots: string[];
   /** Droits manquants : distingués de « pas de données » (§19). */
