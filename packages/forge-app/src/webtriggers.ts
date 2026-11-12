@@ -232,21 +232,19 @@ async function liveSpaces(ctx: ServiceContext, keys: readonly string[]): Promise
   return spaces;
 }
 
-/** La couverture réelle : compteurs du jour + angles morts déclarés par le service. */
+/**
+ * La couverture réelle : c'est celle du rapport `coverageReport` (les sept
+ * gîtes, chacun avec ses compteurs et sa raison de refus). Le webtrigger se
+ * contente de la reprendre telle quelle — les compteurs viennent du store,
+ * jamais de valeurs statiques.
+ */
 function liveCoverage(base: CoverageReport, budget: ScanBudget, lastPassAt?: string): CoverageReport {
   const coverage: CoverageReport = {
-    perGite: [
-      { gite: 'corps-de-page', scanned: budget.pagesScanned, skipped: 0 },
-      {
-        gite: 'pieces-jointes',
-        scanned: budget.attachmentsRead,
-        skipped: budget.attachmentsSkipped,
-        reason: 'Binaire sans texte ou taille dépassée — détail dans le budget.',
-      },
-    ],
+    perGite: base.perGite.map((gite) => ({ ...gite })),
     blindSpots: [...base.blindSpots],
     missingRights: [...base.missingRights],
   };
+  void budget;
   if (lastPassAt !== undefined) coverage.lastPassAt = lastPassAt;
   return coverage;
 }

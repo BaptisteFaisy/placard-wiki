@@ -236,14 +236,25 @@ async function measuredGites(ctx: ServiceContext): Promise<GiteCoverage[]> {
  * (commentaires, versions, titres). Quand les deux existent, la plus fine
  * gagne sur les compteurs, et la raison la plus précise est conservée.
  */
-function mergeGite(measured: GiteCoverage | undefined, stored: GiteCoverage): GiteCoverage {
+/**
+ * Fusionne les deux mesures d'un même gîte.
+ *
+ * La mesure du store (`page_scan`, `attachment_scan`) est plus fine — elle
+ * connaît les pages et les fichiers non lus, un par un ; la mesure de la
+ * passe (`gite_coverage`) connaît les gîtes que le store ne suit pas
+ * (commentaires, versions, titres). Quand les deux existent, la plus fine
+ * gagne sur les compteurs ; sinon la mesure de la passe fait foi.
+ */
+function mergeGite(measured: GiteCoverage | undefined, stored: GiteCoverage | undefined): GiteCoverage {
+  if (measured === undefined && stored === undefined) return { gite: '', scanned: 0, skipped: 0 };
+  if (stored === undefined) return measured as GiteCoverage;
   if (measured === undefined) return stored;
+  const reason = stored.reason ?? measured.reason;
   return {
     gite: measured.gite,
     scanned: stored.scanned,
     skipped: stored.skipped,
-    ...(stored.reason !== undefined ? { reason: stored.reason } : {}),
-    ...(measured.reason !== undefined ? { reason: measured.reason } : {}),
+    ...(reason !== undefined ? { reason } : {}),
   };
 }
 
@@ -263,7 +274,7 @@ export async function coverageReport(ctx: ServiceContext): Promise<CoverageRepor
   const names = [...new Set([...measured.map((g) => g.gite), ...stored.map((g) => g.gite)])];
   const perGite = names.map((name) => mergeGite(
     measured.find((g) => g.gite === name),
-    stored.find((g) => g.gite === name) ?? { gite: name, scanned: 0, skipped: 0 },
+    stored.find((g) => g.gite === name),
   ));
   const unreadPages = await classifyUnreadPages(ctx);
   const blindSpots = [...DECLARED_BLIND_SPOTS, ...unreadPages.blind];

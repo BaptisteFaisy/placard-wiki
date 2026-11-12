@@ -175,6 +175,9 @@ async function persistScans(ctx: ServiceContext, acc: ScanAccumulator): Promise<
  * (description d'espace) ne passent pas par la passe de pages : ils restent
  * déclarés « hors passe », jamais passés sous silence. Chaque gîte illisible
  * porte la raison exacte du refus (scope manquant, chemin retiré).
+ *
+ * Les compteurs sont **cumulés** sur la journée, comme le budget : une passe
+ * ne doit pas effacer ce qu'une autre a mesuré.
  */
 async function persistGiteCoverage(ctx: ServiceContext, acc: ScanAccumulator): Promise<void> {
   const day = ctx.clock.now().slice(0, 10);
@@ -190,7 +193,17 @@ async function persistGiteCoverage(ctx: ServiceContext, acc: ScanAccumulator): P
       });
     }
   }
-  for (const line of lines) await ctx.store.giteCoverage.put(line, day);
+  for (const line of lines) {
+    const previous = await ctx.store.giteCoverage.get(day, line.gite);
+    await ctx.store.giteCoverage.put({
+      gite: line.gite,
+      scanned: (previous?.scanned ?? 0) + line.scanned,
+      skipped: (previous?.skipped ?? 0) + line.skipped,
+      ...(line.reason ?? previous?.reason) !== undefined
+        ? { reason: line.reason ?? previous?.reason }
+        : {},
+    }, day);
+  }
 }
 
 /** Met à jour le budget du jour (§14) — compteurs jamais masqués. */
