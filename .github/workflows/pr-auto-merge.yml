@@ -253,7 +253,23 @@ jobs:
     #     est pilotée par la file, pas par le balayeur : ses fins de `CI` et de
     #     `couche0` ne doivent réveiller aucun balayage (c'était ~85 % des runs) ;
     #   - un run `cancelled`/`skipped` ne laisse aucun verdict à traiter.
-    if: ${{ github.event_name != 'workflow_run' || (!startsWith(github.event.workflow_run.head_branch, 'mergify/merge-queue/') && !startsWith(github.event.workflow_run.head_branch, 'gh-readonly-queue/') && github.event.workflow_run.conclusion != 'cancelled' && github.event.workflow_run.conclusion != 'skipped') }}
+    # v30 — une branche de lot Mergify (`mergify/merge-queue/**`,
+    # `gh-readonly-queue/**`) ne réveille JAMAIS le balayeur, quel que soit
+    # l'événement. Le v17 ne filtrait que `workflow_run` : les événements
+    # `pull_request` des branches de lot passaient, et chaque lot spéculatif
+    # occupait le runner unique pendant que `discover` stabilisait les états.
+    # Mesuré le 12/11 : 4 PR en file, `discover` mort à 5 min sur « liste des PR
+    # illisible », son check `pending` sur la branche de lot — et la file
+    # Mergify attend ce check avant de fusionner. Le balayeur n'a rien à faire
+    # dans la file : c'est Mergify qui la pilote.
+    if: >-
+      ${{ !startsWith(github.head_ref, 'mergify/merge-queue/')
+      && !startsWith(github.head_ref, 'gh-readonly-queue/')
+      && (github.event_name != 'workflow_run'
+          || (!startsWith(github.event.workflow_run.head_branch, 'mergify/merge-queue/')
+              && !startsWith(github.event.workflow_run.head_branch, 'gh-readonly-queue/')
+              && github.event.workflow_run.conclusion != 'cancelled'
+              && github.event.workflow_run.conclusion != 'skipped')) }}
     runs-on: [self-hosted, linux, x64, placard-wiki-worker]
     timeout-minutes: 5
     outputs:
@@ -364,7 +380,15 @@ jobs:
           # PR #12 sonde : 4 lectures UNSTABLE de suite malgré l'attente) ;
           # au-delà, verdict tel quel (le réessai v21 prend le relais au
           # prochain déclenchement).
-          lire_fiche() { # $1=numéro PR → json fiche stabilisée
+          # v30 — le budget de stabilisation est GLOBAL (150 s pour tout
+          # l'inventaire) et les lectures sont rapprochées (5 s) : 12 × 10 s PAR
+          # PR dépassait les 5 min du job dès la quatrième PR ouverte, et le job
+          # mourait sur « liste des PR illisible » sans rien balayer. Au-delà du
+          # budget, le verdict est pris tel quel : le réessai v21 reprend la main
+          # au prochain déclenchement, et la file Mergify n'attend plus un check
+          # qui ne finit jamais.
+          FIN_STABILISATION=$(( $(date +%s) + 150 ))
+          lire_fiche() { # $1=numéro PR → json fiche stabilisée (budget global)
             local n="$1" i fiche etat
             for i in $(seq 1 12); do
               fiche="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$n" \
@@ -373,8 +397,12 @@ jobs:
                 2>/dev/null || echo unknown)"
               case "$etat" in
                 unknown|unstable)
+                  if [ "$(date +%s)" -ge "$FIN_STABILISATION" ]; then
+                    echo "PR #$n : $etat — budget de stabilisation épuisé, verdict tel quel" >&2
+                    break
+                  fi
                   echo "PR #$n : $etat (lecture $i/12), on attend" >&2
-                  sleep 10 ;;
+                  sleep 5 ;;
                 *) printf '%s' "$fiche"; return 0 ;;
               esac
             done
