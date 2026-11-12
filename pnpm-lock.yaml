@@ -118,6 +118,12 @@ importers:
       '@forge/manifest':
         specifier: ^13.9.0
         version: 13.9.0(typescript@5.9.3)
+      '@placard-wiki/demo-space':
+        specifier: workspace:*
+        version: link:../demo-space
+      '@placard/core':
+        specifier: workspace:*
+        version: link:../../vendor/placard/packages/core
       '@types/react':
         specifier: ^18.3.12
         version: 18.3.31
