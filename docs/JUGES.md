@@ -20,10 +20,18 @@ site Confluence, sans identifiants. Le chrono ci-dessous, lui, se joue sur
 
 ## Avant de commencer (0 min, en dehors du chrono)
 
-- **Lien d'installation** : *(placeholder — fourni dans la soumission Devpost ;
-  installation sur votre site Confluence Cloud, droits d'admin requis)*.
-- **Identifiants de démonstration** : *(placeholder — fournis dans la
-  soumission)*.
+- **Lien d'installation** : *(placeholder Devpost — en attendant, l'app tourne
+  réellement sur le site de démonstration ci-dessous)*.
+- **App installée et vérifiée (12 novembre 2026)** : `Placard for Confluence`,
+  app.id `ari:cloud:ecosystem::app/dc47d23f-e4cd-4681-bb64-14ac02ea1c98`
+  (Developer Space « laddition »), déployée en v2.0.0 (`forge deploy`,
+  environnements `development` et `production`) et installée sur le site
+  Confluence `one-atlas-cndz.atlassian.net` :
+  <https://one-atlas-cndz.atlassian.net/wiki/apps/dc47d23f-e4cd-4681-bb64-14ac02ea1c98/187530d6-48dd-414c-8215-ee19afe04033/placard>
+- **Espace de démonstration semé** : `PLACARDDEMO` sur ce même site —
+  <https://one-atlas-cndz.atlassian.net/wiki/spaces/PLACARDDEMO> (faux secrets
+  de chaque famille dans chaque gîte, §15 ; accès fourni aux juges sur demande).
+- **Identifiants de démonstration** : *(fournis dans la soumission)*.
 - Aucun secret réel n'est nécessaire : l'app apporte son propre contenu de test.
 
 ## Minute 0 – 2 · L'espace de démonstration

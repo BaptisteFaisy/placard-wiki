@@ -53,6 +53,11 @@ Tester sans rien installer : le site de démonstration public
 <https://baptistefaisy.github.io/placard-wiki/> montre le registre, le bâtiment,
 le rituel en démo locale et le certificat — données 100 % synthétiques.
 
+L'app Forge réelle (v2.0.0, `forge lint` 0 erreur, build/deploy/install
+vérifiés le 12 novembre 2026) tourne sur le site de démonstration
+`one-atlas-cndz.atlassian.net` avec son espace semé `PLACARDDEMO` —
+voir [`docs/JUGES.md`](docs/JUGES.md) et [`docs/VALIDATION-22.md`](docs/VALIDATION-22.md).
+
 ## Développement
 
 Prérequis : Node ≥ 22, pnpm 9 (via corepack), Python 3 (gardes CI).
