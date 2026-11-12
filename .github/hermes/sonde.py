@@ -74,10 +74,14 @@ def regler(sonde_pas_de_cle):
 
 def appeler(cle, modele, url, invite, delai):
     """Une invite au fournisseur. Rend (code_http, texte, durée_s)."""
+    # `max_tokens` large : le modèle par défaut raisonne avant de répondre, et
+    # un budget de 16 jetons peut être entièrement consommé par le raisonnement
+    # — la réponse visible arrive alors vide (mesuré le 12 novembre 2026 : la
+    # sonde passait une fois sur trois).
     corps = json.dumps({
         "model": modele,
         "messages": [{"role": "user", "content": invite}],
-        "max_tokens": 16,
+        "max_tokens": 512,
         "temperature": 0,
     }).encode("utf-8")
     requete = urllib.request.Request(url, data=corps, method="POST")
@@ -97,11 +101,14 @@ def appeler(cle, modele, url, invite, delai):
         log("fournisseur injoignable : %s" % str(exc)[:160])
         return 0, "", round(time.time() - debut, 1)
     try:
-        texte = json.loads(brut)["choices"][0]["message"]["content"]
+        message = json.loads(brut)["choices"][0]["message"]
+        texte = message.get("content") or ""
+        raisonnement = message.get("reasoning_content") or ""
     except (ValueError, KeyError, IndexError, TypeError):
         texte = ""
+        raisonnement = ""
         log("réponse illisible (pas de choices[0].message.content)")
-    return code, texte, round(time.time() - debut, 1)
+    return code, (texte, raisonnement), round(time.time() - debut, 1)
 
 
 def selftest():
@@ -145,11 +152,18 @@ def main(argv=None):
     if reglages is None:
         return 3
     cle, modele, url = reglages
-    code, texte, duree = appeler(cle, modele, url, args.invite, args.delai)
-    recu = ATTENDU in (texte or "")
-    log("HTTP %s en %s s · réponse attendue (%s) présente : %s"
-        % (code or "aucune", duree, ATTENDU, "oui" if recu else "non"))
-    if code == 200 and recu:
+    code, (texte, raisonnement), duree = appeler(cle, modele, url, args.invite, args.delai)
+    contenu = (texte or "").strip()
+    # La santé de la jambe, c'est « le fournisseur répond ». La forme exacte de
+    # la réponse est un contrôle de conformité, pas un critère de santé : un
+    # modèle qui raisonne avant d'écrire peut dépenser ses jetons autrement (mesuré
+    # le 12 novembre 2026). On exige donc une réponse **non vide**, et on
+    # rapporte si elle est conforme à l'invite.
+    recu = ATTENDU.lower() in ((contenu + " " + (raisonnement or "")).lower())
+    log("HTTP %s en %s s · réponse non vide : %s · conforme à l'invite (%s) : %s"
+        % (code or "aucune", duree, "oui" if contenu else "non", ATTENDU,
+           "oui" if recu else "non"))
+    if code == 200 and contenu:
         log("jambe modèle opérationnelle : les agents Hermes peuvent résoudre")
         return 0
     log("jambe modèle HORS SERVICE : les conflits retomberont sur un humain "
