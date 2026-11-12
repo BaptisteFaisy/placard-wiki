@@ -351,7 +351,7 @@ jobs:
           # `--jq '…'` ferme le guillemet simple et gh meurt sur « unknown
           # arguments » (vécu le 29/10 : `discover` rendait une matrice vide en
           # silence et plus aucune PR n'était balayée).
-          FILTRE='[.[] | select(.headRepository.nameWithOwner == "BaptisteFaisy/placard-wiki")
+          FILTRE='[.[] | select(.headRepository.nameWithOwner == "Tradoooo/placard-wiki")
             | {pr: .number, sha: .headRefOid, branch: .headRefName,
                state: .mergeStateStatus, draft: (.isDraft | tostring),
                main: .baseRefOid, maj: .updatedAt}]
