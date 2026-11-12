@@ -246,5 +246,48 @@ class GardeFousTest(unittest.TestCase):
         self.assertEqual(corps, "")
 
 
+class SousModuleTest(unittest.TestCase):
+    """Le sous-module `vendor/placard` est initialisé avant `pnpm install`.
+
+    Sans lui, le workspace n'installe pas `@placard/core` et la validation échoue
+    sur « Cannot find module '@placard/core' » : un faux négatif qui refuse un
+    push alors que la résolution est bonne (mesuré le 12 novembre 2026).
+    """
+
+    def test_sous_module_initialise_avant_install(self):
+        appels = []
+
+        def faux_lancer(commande, timeout):
+            appels.append(commande)
+            return 0, ""
+
+        with DansClone({"pnpm-lock.yaml": "lockfileVersion: '9.0'\n",
+                        ".gitmodules": "[submodule \"vendor/placard\"]\n"}), \
+                mock.patch.dict(os.environ, dict(SANS_GATE,
+                    **{compilation_gate.GATE_INSTALL_ENV: "1"})), \
+                mock.patch.object(compilation_gate, "_lancer", side_effect=faux_lancer), \
+                mock.patch.object(compilation_gate.shutil, "which",
+                                  side_effect=lambda nom: "/usr/bin/" + nom):
+            ok, _message = compilation_gate.verifier_compilation(["src/x.ts"])
+        self.assertTrue(ok)
+        sous_modules = [c for c in appels if c[:3] == ["git", "submodule", "update"]]
+        installations = [c for c in appels if c[:2] == ["pnpm", "install"]]
+        self.assertTrue(sous_modules, "le sous-module doit être initialisé")
+        self.assertTrue(installations, "les dépendances doivent être installées")
+        self.assertLess(appels.index(sous_modules[0]), appels.index(installations[0]),
+                        "le sous-module d'abord, l'installation ensuite")
+
+    def test_sous_module_echoue_le_say(self):
+        with DansClone({"pnpm-lock.yaml": "lockfileVersion: '9.0'\n",
+                        ".gitmodules": "[submodule \"vendor/placard\"]\n"}), \
+                mock.patch.dict(os.environ, dict(SANS_GATE,
+                    **{compilation_gate.GATE_INSTALL_ENV: "1"})), \
+                mock.patch.object(compilation_gate, "_lancer",
+                                  return_value=(1, "fatal: could not read")):
+            ok, message = compilation_gate.verifier_compilation(["src/x.ts"])
+        self.assertTrue(ok)
+        self.assertIn("sous-module", message)
+
+
 if __name__ == "__main__":
     unittest.main()
