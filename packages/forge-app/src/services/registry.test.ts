@@ -94,7 +94,9 @@ describe('coverageReport — droit manquant ≠ « pas de données » (§25.18)'
     const report = await coverageReport(makeTestContext());
 
     expect(report.missingRights).toContain(GRAPH_RIGHTS_TO_VALIDATE);
-    expect(report.missingRights.join(' ')).toContain('read:graph:document');
+    // Les formes exactes, validées par `forge lint` le 12 novembre 2026 :
+    // `read:graph:document` / `read:graph:project` n'existent pas (docs/VALIDATION-22.md).
+    expect(report.missingRights.join(' ')).toContain('read:graph:page:confluence');
   });
 });
 
