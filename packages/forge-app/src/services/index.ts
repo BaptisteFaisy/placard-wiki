@@ -14,3 +14,4 @@ export * from './ritual-service';
 export * from './registry';
 export * from './ai-certificate';
 export * from './coverage';
+export * from './surfaces';

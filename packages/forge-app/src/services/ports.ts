@@ -10,6 +10,7 @@
 import type { ConfluenceClient } from '@placard-wiki/wiki-source';
 import type { CachedOracle, LlmOracle } from '@placard-wiki/detectors';
 import type { ClockPort, IdPort, StoragePort } from '@placard-wiki/ritual';
+import type { FingerprintNamespace, SurfaceRegistry } from '@placard-wiki/surfaces';
 import type {
   Foyer,
   OwnerResolution,
@@ -75,6 +76,10 @@ export interface ServiceContext {
   store: ForgeStore;
   confluence: ConfluenceClient;
   hmacKey: string;
+  /** Le namespace d'empreinte de l'installation (PW-31) — partagé ou non. */
+  namespace: FingerprintNamespace;
+  /** Le registre multi-surfaces : où les empreintes ont été vues (PW-31). */
+  surfaces: SurfaceRegistry;
   clock: ClockPort;
   ids: IdPort;
   storage: StoragePort;

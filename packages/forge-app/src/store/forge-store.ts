@@ -29,6 +29,7 @@ import type {
   SweepCursor,
 } from '@placard-wiki/domain';
 import type { SpaceSettings } from '@placard-wiki/domain';
+import type { SurfaceRegistry } from '@placard-wiki/surfaces';
 
 import type { ForgeStore, ListFoyersQuery } from './ports';
 import {
@@ -42,6 +43,10 @@ import {
   pageScanFromRow, pageScanToRow, purgeRequestFromRow, purgeRequestToRow,
   ritualStepFromRow, ritualStepToRow,
 } from './serialize';
+import {
+  SURFACE_SEEN_DDL, surfaceSeenFromRow, surfaceSeenToRow,
+} from './surface-rows';
+import type { SurfaceSeenRow } from './surface-rows';
 import { defaultSpaceSettings, rehydrate } from './memory-store';
 
 /** Cache page → espace (la table `finding` n'a pas de colonne `space_key`). */
@@ -71,6 +76,7 @@ export async function initSchema(): Promise<void> {
   runner.enqueue('v001_app_secret', APP_SECRET_DDL);
   runner.enqueue('v001_gite_coverage', GITE_COVERAGE_DDL);
   runner.enqueue('v001_gite_scan', GITE_SCAN_DDL);
+  runner.enqueue('v001_surface_seen', SURFACE_SEEN_DDL);
   await runner.run();
 }
 
@@ -85,7 +91,7 @@ function ensureSchema(): Promise<void> {
   if (schemaReady === null) {
     schemaReady = initSchema().then(
       () => {
-        console.info('[placard] schéma SQL prêt (onze tables du §20 + app_secret).');
+        console.info('[placard] schéma SQL prêt (onze tables du §20 + app_secret + surface_seen).');
       },
       (error: unknown) => {
         schemaReady = null; // la passe suivante retente la migration
@@ -104,9 +110,10 @@ async function select<T>(query: string, params: unknown[]): Promise<T[]> {
 }
 
 /** Exécute une mutation paramétrée (INSERT/UPDATE/DELETE). */
-async function mutate(query: string, params: unknown[]): Promise<void> {
+async function mutate(query: string, params: unknown[]): Promise<UpdateQueryResponse> {
   await ensureSchema();
-  await (sql.prepare(query).bindParams(...(params as never[])).execute() as Promise<Result<UpdateQueryResponse>>);
+  const res = (await sql.prepare(query).bindParams(...(params as never[])).execute()) as Result<UpdateQueryResponse>;
+  return res.rows;
 }
 
 function spaceOfFn(pageId: string): string | undefined {
@@ -372,6 +379,58 @@ function forgeSettings(): ForgeStore['settings'] {
     },
     async put(value: SpaceSettings) {
       settingsMap.set(value.spaceKey, value);
+    },
+  };
+}
+
+/**
+ * Le registre multi-surfaces (PW-31) : la table `surface_seen`.
+ *
+ * L'identifiant d'un emplacement est le couple (surface, external_id) :
+ * ré-enregistrer le même emplacement remplace la ligne au lieu d'en créer
+ * une deuxième — la première observation est conservée, la dernière mise à
+ * jour.
+ */
+export function forgeSurfaceRegistry(): SurfaceRegistry {
+  return {
+    async record(seen) {
+      const row = surfaceSeenToRow(seen);
+      // Mise à jour d'abord (une seule requête dans le cas courant), insertion
+      // seulement si l'emplacement était inconnu : la première observation est
+      // conservée, la dernière est rafraîchie.
+      const updated = (await mutate(
+        'UPDATE surface_seen SET label = ?, namespace_id = ?, foyer_id = ?, state = ?, method = ?, source = ?, last_seen_at = ? WHERE fingerprint = ? AND surface = ? AND external_id = ?',
+        [row.label, row.namespace_id, row.foyer_id, row.state, row.method,
+          row.source, row.last_seen_at, row.fingerprint, row.surface, row.external_id],
+      )) as UpdateQueryResponse;
+      if (updated.affectedRows > 0) return;
+      await mutate(
+        'INSERT INTO surface_seen (fingerprint, surface, external_id, label, namespace_id, foyer_id, state, method, source, first_seen_at, last_seen_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+        [row.fingerprint, row.surface, row.external_id, row.label, row.namespace_id,
+          row.foyer_id, row.state, row.method, row.source, row.first_seen_at,
+          row.last_seen_at],
+      );
+    },
+    async listByFingerprint(fingerprint) {
+      const rows = await select<SurfaceSeenRow>(
+        'SELECT * FROM surface_seen WHERE fingerprint = ? ORDER BY last_seen_at DESC',
+        [fingerprint],
+      );
+      return rows.map(surfaceSeenFromRow);
+    },
+    async listByFoyer(foyerId) {
+      const rows = await select<SurfaceSeenRow>(
+        'SELECT * FROM surface_seen WHERE foyer_id = ? ORDER BY last_seen_at DESC',
+        [foyerId],
+      );
+      return rows.map(surfaceSeenFromRow);
+    },
+    async listByLocation(surface, externalId) {
+      const rows = await select<SurfaceSeenRow>(
+        'SELECT * FROM surface_seen WHERE surface = ? AND external_id = ? ORDER BY last_seen_at DESC',
+        [surface, externalId],
+      );
+      return rows.map(surfaceSeenFromRow);
     },
   };
 }

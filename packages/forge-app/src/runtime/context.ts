@@ -14,15 +14,18 @@ import { asApp, asUser, assumeTrustedRoute, __getRuntime } from '@forge/api';
 import type { ConfluenceClient } from '@placard-wiki/wiki-source';
 import { createCachedOracle, ORACLE_SYSTEM_PROMPT_FR } from '@placard-wiki/detectors';
 import type { CachedOracle, LlmOracle, LlmOracleQuestion, LlmOracleVerdict } from '@placard-wiki/detectors';
+import { effectiveHmacKey } from '@placard-wiki/surfaces';
+import type { FingerprintNamespace } from '@placard-wiki/surfaces';
 import { chat } from '@forge/llm';
 import { appEvents } from '@forge/events';
 import type { ClockPort, IdPort, StoragePort } from '@placard-wiki/ritual';
 
 import { createForgeConfluence } from './confluence';
-import { createForgeStore, readOrCreateAppSecret } from '../store/forge-store';
+import { createForgeStore, forgeSurfaceRegistry, readOrCreateAppSecret } from '../store/forge-store';
 import type { ForgeStore } from '../store/ports';
 import {
-  HMAC_SECRET_NAME, HMAC_VARIABLE, generateHmacKey, staticVariable,
+  HMAC_SECRET_NAME, HMAC_VARIABLE, generateHmacKey, readNamespaceSetup,
+  staticVariable,
 } from './secret';
 import type { HmacSource } from './secret';
 import type {
@@ -53,21 +56,44 @@ function installationKey(): string {
   }
 }
 
+/** L'identifiant d'installation (pour le namespace propre, PW-31). */
+function installationId(): string {
+  try {
+    return __getRuntime().appContext.installationId;
+  } catch {
+    return 'installation-inconnue';
+  }
+}
+
 /**
- * Résout la clé HMAC de l'installation : variable statique Forge, puis table
- * technique `app_secret`, puis repli dérivé de l'installation (voir
- * `runtime/secret.ts`). La valeur n'est jamais journalisée — seule la source.
+ * Résout la clé HMAC de l'installation : namespace partagé (opt-in), puis
+ * variable statique Forge, puis table technique `app_secret`, puis repli
+ * dérivé de l'installation (voir `runtime/secret.ts`). La valeur n'est jamais
+ * journalisée — seule la source, et l'identifiant du namespace.
  */
-async function resolveHmacKey(): Promise<{ key: string; source: HmacSource }> {
+async function resolveHmacKey(): Promise<{
+  key: string; source: HmacSource; namespace: FingerprintNamespace;
+}> {
+  const { namespace, sharedKey } = readNamespaceSetup(installationId());
+  if (namespace.warning !== undefined) {
+    console.warn(`[placard] namespace d’empreinte : ${namespace.warning}`);
+  }
+  if (namespace.shared && sharedKey !== undefined) {
+    return {
+      key: effectiveHmacKey(namespace, sharedKey, installationKey()),
+      source: 'namespace-partage',
+      namespace,
+    };
+  }
   const fromVariable = staticVariable(HMAC_VARIABLE);
-  if (fromVariable !== undefined) return { key: fromVariable, source: 'variable-forge' };
+  if (fromVariable !== undefined) return { key: fromVariable, source: 'variable-forge', namespace };
   try {
     const persisted = await readOrCreateAppSecret(HMAC_SECRET_NAME, generateHmacKey);
-    if (persisted !== '') return { key: persisted, source: 'sql-app_secret' };
+    if (persisted !== '') return { key: persisted, source: 'sql-app_secret', namespace };
   } catch {
     // Le store est indisponible : on retombe sur la clé d'installation.
   }
-  return { key: installationKey(), source: 'repli-installation' };
+  return { key: installationKey(), source: 'repli-installation', namespace };
 }
 
 /**
@@ -298,7 +324,10 @@ function currentActor(): ActorContext {
 /** Assemble le contexte : la clé HMAC est résolue AVANT (elle conditionne les empreintes). */
 async function buildContext(): Promise<ServiceContext> {
   const hmac = await resolveHmacKey();
-  console.info(`[placard] clé HMAC : source=${hmac.source} (valeur jamais journalisée).`);
+  console.info(
+    `[placard] clé HMAC : source=${hmac.source} namespace=${hmac.namespace.id} ` +
+    `partagé=${String(hmac.namespace.shared)} (valeurs jamais journalisées).`,
+  );
   const store: ForgeStore = createForgeStore();
   const confluence = createConfluence();
   const oracle: CachedOracle = createCachedOracle(createLlmOracle(), { hmacKey: hmac.key });
@@ -306,6 +335,8 @@ async function buildContext(): Promise<ServiceContext> {
     store,
     confluence,
     hmacKey: hmac.key,
+    namespace: hmac.namespace,
+    surfaces: forgeSurfaceRegistry(),
     clock,
     ids,
     storage: createStorage(),

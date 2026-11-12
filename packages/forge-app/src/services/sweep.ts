@@ -32,6 +32,7 @@ import {
 } from './scan-page';
 import type { ScanAccumulator } from './scan-page';
 import { GITE_ORDER, NOT_ATTEMPTED_GITES, NOT_ATTEMPTED_REASON } from './coverage';
+import { recordConfluenceSurfaces } from './surfaces';
 import type { GiteCoverageLine, GiteScanRecord } from '../store/ports';
 
 /** Paramètres d'un balayage borné. */
@@ -163,6 +164,9 @@ async function finalizeFoyers(
     });
     const withSpace = exposure === null ? scored : { ...scored, spaceKey: exposure.spaceKey };
     await ctx.store.saveFoyer(withSpace);
+    // Le wiki est aussi une surface : le foyer s'y inscrit (PW-31), pour que
+    // l'empreinte puisse ensuite être retrouvée sur les surfaces externes.
+    await recordConfluenceSurfaces(ctx, withSpace);
   }
   return foyers.length;
 }

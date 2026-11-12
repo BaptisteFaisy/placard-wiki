@@ -55,8 +55,14 @@ export const GITE_SCAN_DDL = `CREATE TABLE IF NOT EXISTS gite_scan (
 /** Lecture paramétrée, injectée par le store SQL. */
 export type SelectFn = <T>(query: string, params: unknown[]) => Promise<T[]>;
 
-/** Mutation paramétrée, injectée par le store SQL. */
-export type MutateFn = (query: string, params: unknown[]) => Promise<void>;
+/**
+ * Mutation paramétrée, injectée par le store SQL.
+ *
+ * Le résultat est rendu tel quel par le store (le nombre de lignes touchées
+ * sert au registre multi-surfaces) ; les dépôts de couverture n'en ont pas
+ * besoin — ils vérifient leur état par une relecture.
+ */
+export type MutateFn = (query: string, params: unknown[]) => Promise<unknown>;
 
 /** Ligne brute de la table technique `gite_coverage`. */
 interface GiteCoverageRow {
