@@ -6,9 +6,10 @@
  *   pnpm seed:demo -- --dry-run   # imprime les requêtes, AUCUN réseau
  *
  * `fetch` est injectable (`main(argv, env, fetchImpl, log)`) pour les tests ;
- * le plan est idempotent (lookup avant création). Les étapes impossibles via
- * REST standard (partage public, création d'espace/modèle selon les droits)
- * sont signalées sans faire échouer le semis.
+ * le plan est idempotent (lookup avant création, et un conflit « déjà présent »
+ * vaut « ignoré »). La seule étape qui échoue encore est le partage public
+ * « anyone with the link », impossible via REST : elle est marquée `documented`
+ * et ne fait pas échouer le semis.
  */
 
 import { resolve } from 'node:path';
@@ -68,8 +69,13 @@ export async function main(
   const opts = optionsFromEnv(env)!;
   const report = await executePlan(plan, opts, fetchImpl, log);
   const compte = (s: string) => report.results.filter((r) => r.status === s).length;
-  log(`[demo-space] espace ${report.spaceKey} : ${compte('created')} créé(s), ${compte('skipped')} ignoré(s), ${compte('failed')} échec(s).`);
-  return compte('failed') > 0 ? 1 : 0;
+  const documentés = report.results.filter((r) => r.status === 'failed' && r.documented === true).length;
+  const échecs = compte('failed') - documentés;
+  log(
+    `[demo-space] espace ${report.spaceKey} : ${compte('created')} créé(s), ${compte('skipped')} ignoré(s), ` +
+      `${documentés} échec(s) documenté(s), ${échecs} échec(s).`,
+  );
+  return échecs > 0 ? 1 : 0;
 }
 
 /** Garde d'exécution directe (ESM) : `tsx src/seed.ts`. */

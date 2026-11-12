@@ -8,16 +8,20 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  TITRE_MAX_CARACTERES,
   attachementDe,
   commentaireSecret,
+  commentaireXml,
   corpsDePageXml,
   echapperXml,
-  espaceDescriptionXml,
+  espaceDescriptionTexte,
   historiqueV1Xml,
   historiqueV2Xml,
   identifiantDe,
   modelePageXml,
   pagePartageeXml,
+  surUneLigne,
+  texteNu,
   titreSecret,
 } from './content';
 import { MARQUE_SYNTHETIQUE, fixturesDuGite } from './index';
@@ -61,16 +65,53 @@ describe('commentaires', () => {
       expect(texte).toContain(MARQUE_SYNTHETIQUE);
     }
   });
+
+  it('le storage XML est un paragraphe échappé (& refusé nu par Confluence)', () => {
+    for (const f of commentaires) {
+      const xml = commentaireXml(f);
+      expect(xml.startsWith('<p>')).toBe(true);
+      expect(xml.endsWith('</p>')).toBe(true);
+      expect(xml).toContain(echapperXml(f.value));
+      expect(xml.replace(/&[a-zA-Z#0-9]+;/g, '')).not.toContain('&');
+    }
+  });
+
+  it('le corps relu normalisé par Confluence se compare au corps envoyé', () => {
+    const f = commentaires.find((x) => x.family === 'credential-table')!;
+    // Confluence réécrit les accents en entités et conserve `&amp;`.
+    const relu = commentaireXml(f)
+      .replace('SYNTHÉTIQUE', 'SYNTH&Eacute;TIQUE')
+      .replace('—', '&mdash;')
+      .replace('démo', 'd&eacute;mo');
+    expect(texteNu(relu)).toBe(texteNu(commentaireXml(f)));
+    expect(texteNu(relu)).toContain(f.value);
+  });
 });
 
 describe('titres', () => {
-  it('« accès staging (mdp: …) » avec la valeur et la marque', () => {
+  it('« accès staging (mdp: …) » avec la marque, et jamais plus de 255 caractères', () => {
     for (const f of titres) {
       const titre = titreSecret(f);
       expect(titre).toContain('accès staging (mdp:');
-      expect(titre).toContain(f.value);
       expect(titre).toContain(MARQUE_SYNTHETIQUE);
+      expect(titre.length).toBeLessThanOrEqual(TITRE_MAX_CARACTERES);
     }
+  });
+
+  it('porte la valeur intacte quand elle tient sur une ligne dans la limite', () => {
+    for (const f of titres) {
+      if (surUneLigne(f.value).length > 180) continue;
+      expect(titreSecret(f)).toContain(surUneLigne(f.value));
+    }
+  });
+
+  it('un bloc PEM trop long est borné mais garde ses marqueurs BEGIN/END', () => {
+    const f = titres.find((x) => x.family === 'private-key')!;
+    const titre = titreSecret(f);
+    expect(titre.length).toBe(TITRE_MAX_CARACTERES);
+    expect(titre).toContain('-----BEGIN');
+    expect(titre).toContain('PRIVATE KEY-----');
+    expect(titre).not.toContain('\n');
   });
 });
 
@@ -87,10 +128,15 @@ describe('historique de versions', () => {
 });
 
 describe('description d’espace', () => {
-  const xml = espaceDescriptionXml(description);
-  it('porte les 12 valeurs et la marque', () => {
-    for (const f of description) expect(xml).toContain(echapperXml(f.value));
-    expect(xml).toContain(MARQUE_SYNTHETIQUE);
+  const texte = espaceDescriptionTexte(description);
+  it('porte les 12 valeurs et la marque, en texte brut (représentation `plain`)', () => {
+    for (const f of description) expect(texte).toContain(f.value);
+    expect(texte).toContain(MARQUE_SYNTHETIQUE);
+    // L'API refuse toute autre représentation : aucune balise dans la description.
+    expect(texte).not.toContain('<');
+    expect(texte.split('\n')[0]).toBe(MARQUE_SYNTHETIQUE);
+    // Une ligne par valeur au minimum (le bloc PEM de la famille 3 en porte six).
+    expect(texte.split('\n').length).toBeGreaterThanOrEqual(description.length + 1);
   });
 });
 
