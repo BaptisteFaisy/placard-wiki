@@ -518,6 +518,16 @@ permissions:
     # Contenu, pièces jointes, espaces, restrictions, modèles, recherche,
     # utilisateurs — noms EXACTS validés par `forge lint` le 12 novembre 2026
     # (source : @forge/manifest/out/scopes/shipyard-scopes.json).
+    #
+    # ⚠ SCOPES GRANULAIRES — correctif du 12 novembre 2026 (mesuré).
+    # Les scopes « agrégats » ci-dessous (`read:confluence-content.all`,
+    # `read:content:confluence`) ne satisfont PAS la passerelle Confluence
+    # Cloud : la réponse mesurée est `401 {"message":"Unauthorized; scope does
+    # not match"}`. Les deux seuls points d'accès qui répondaient 200 étaient
+    # ceux dont le scope **granulaire** était accordé
+    # (`search:confluence`, `read:content.restriction:confluence`).
+    # La passerelle exige donc un scope par type d'objet — c'est ce que la
+    # demande ci-dessous ajoute (§6 : les sept gîtes doivent être lisibles).
     - read:confluence-content.all
     - read:content:confluence
     - read:attachment:confluence
@@ -528,6 +538,35 @@ permissions:
     - search:confluence
     - read:confluence-user
     - write:confluence-content
+    # --- Lecture par type d'objet (les sept gîtes, §6) --------------------
+    # Sans ces scopes, la page, ses commentaires, ses pièces jointes et son
+    # historique renvoient 401 « scope does not match » avec l'identité de
+    # l'app, alors que les mêmes chemins répondent 200 en REST administrateur.
+    - read:page:confluence
+    - read:comment:confluence
+    - read:blogpost:confluence
+    - read:custom-content:confluence
+    - read:database:confluence
+    - read:hierarchical-content:confluence
+    - read:content-details:confluence
+    - read:space-details:confluence
+    - read:label:confluence
+    - read:permission:confluence
+    - read:group:confluence
+    - read:user:confluence
+    - read:relation:confluence
+    - read:watcher:confluence
+    - read:task:confluence
+    - read:inlinetask:confluence
+    - read:embed:confluence
+    - read:folder:confluence
+    - read:slide:confluence
+    - read:whiteboard:confluence
+    - read:space.property:confluence
+    - read:content.property:confluence
+    - read:space.setting:confluence
+    - read:app-data:confluence
+    - read:configuration:confluence
     # Jira : tickets de réparation du rituel (§9, étape 1).
     - read:jira-work
     - write:jira-work
