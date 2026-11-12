@@ -157,16 +157,59 @@ function toDetection(item: ScannedItem, c: DetectionCandidate, detectedAt: strin
   return out;
 }
 
-/** Interroge l'oracle sur un candidat ambigu (famille 9/11) — invite masquée. */
+/**
+ * Découpe les intervalles des autres candidats pour qu'aucun ne chevauche le
+ * span du candidat qui pose question — sans pour autant l'écarter : une règle
+ * large (un tableau d'identifiants) peut contenir la valeur ambiguë, et c'est
+ * elle qui masque le reste. Écarter la règle large laisserait les autres
+ * valeurs du tableau en clair dans l'invite.
+ */
+function sansChevauchement(
+  candidats: readonly DetectionCandidate[],
+  prioritaire: DetectionCandidate,
+): Array<{ charStart: number; charEnd: number; family: string }> {
+  const out: Array<{ charStart: number; charEnd: number; family: string }> = [];
+  for (const autre of candidats) {
+    if (autre === prioritaire) continue;
+    const avant = autre.charStart < prioritaire.charStart && autre.charEnd > prioritaire.charStart;
+    const apres = autre.charEnd > prioritaire.charEnd && autre.charStart < prioritaire.charEnd;
+    if (!avant && !apres) {
+      out.push({ charStart: autre.charStart, charEnd: autre.charEnd, family: autre.family });
+      continue;
+    }
+    if (autre.charStart < prioritaire.charStart) {
+      out.push({ charStart: autre.charStart, charEnd: prioritaire.charStart, family: autre.family });
+    }
+    if (autre.charEnd > prioritaire.charEnd) {
+      out.push({ charStart: prioritaire.charEnd, charEnd: autre.charEnd, family: autre.family });
+    }
+  }
+  return out;
+}
+
+/**
+ * Interroge l'oracle sur un candidat ambigu (famille 9/11) — invite masquée.
+ *
+ * ⚠ Le contexte masqué couvre **tous** les candidats détectés dans l'élément,
+ * pas seulement celui qui pose question. Sinon une valeur voisine (une clé
+ * cloud dans le même tableau d'identifiants) resterait en clair dans l'invite
+ * envoyée au modèle — mesuré le 12 novembre 2026, c'est ce que la preuve de
+ * non-fuite a mis au jour.
+ *
+ * Le span du candidat qui pose question passe en premier : il gagne tout
+ * chevauchement, pour qu'aucune valeur ne survive au masquage.
+ */
 async function resolveAmbiguous(
   ctx: ServiceContext,
   item: ScannedItem,
   candidate: DetectionCandidate,
+  candidats: readonly DetectionCandidate[],
   acc: ScanAccumulator,
 ): Promise<void> {
   if (item.text === undefined) return;
   const maskedContext = maskSpans(item.text, [
     { charStart: candidate.charStart, charEnd: candidate.charEnd, family: candidate.family },
+    ...sansChevauchement(candidats, candidate),
   ]);
   const question = buildQuestion(candidate, maskedContext, ctx.hmacKey);
   const answer = await ctx.oracle.ask(question);
@@ -211,7 +254,7 @@ export async function scanOneItem(
   const candidates = scan === null ? [] : scanItem(scan, { hmacKey: ctx.hmacKey, disabledFamilies: disabled });
   for (const c of candidates) {
     if (c.isKnownFake) acc.knownFakeFingerprints.add(c.fingerprint);
-    if (c.ambiguous) await resolveAmbiguous(ctx, item, c, acc);
+    if (c.ambiguous) await resolveAmbiguous(ctx, item, c, candidates, acc);
     acc.detections.push(toDetection(item, c, detectedAt));
   }
   recordAttachment(acc, item, candidates.length);
