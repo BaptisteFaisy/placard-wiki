@@ -1,6 +1,10 @@
 // Test de fumée LIVE : avec un `fetch` mocké qui répond, l'indicateur
 // d'honnêteté doit dire LIVE et le registre doit porter les données du
 // flux — pas celles de la démo. Aucun réseau réel ici.
+//
+// Second cas : une réponse qui ne respecte plus le contrat publié doit
+// faire basculer le site sur SNAPSHOT, avec la raison affichée — jamais des
+// données incohérentes présentées comme vraies.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -9,75 +13,19 @@ import { PlacardDataProvider } from '../data/placard-data.js';
 import { LiveStatusBanner } from '../components/LiveStatusBanner.js';
 import { RegisterScreen } from '../screens/Register.js';
 import { fetchLive, resetLiveCache } from '../lib/live.js';
-
-const LIVE_PAYLOAD = {
-  generatedAt: '2026-11-12T09:00:00Z',
-  mode: 'live',
-  site: { name: 'one-atlas-cndz' },
-  registry: [
-    {
-      foyerId: 'LIVE-1',
-      family: 'cloud-key',
-      maskedPreview: 'AKIA…(20)',
-      score: 77,
-      state: 'open',
-      spaceKey: 'PLACARDDEMO',
-      pageTitle: 'Page live du site balayé',
-      pageId: 'PLIVE-1',
-      locationCount: 1,
-      inCurrentVersion: true,
-      inHistory: false,
-      readersLow: 5,
-      readersHigh: 50,
-      sharing: 'space-default',
-      aiSurface: false,
-      lastSeenAt: '2026-11-12T08:00:00Z',
-    },
-  ],
-  building: { wings: [] },
-  foyers: {
-    'LIVE-1': {
-      id: 'LIVE-1',
-      fingerprint: 'b'.repeat(64),
-      family: 'cloud-key',
-      baseScore: 40,
-      score: 77,
-      scoreTerms: [],
-      state: 'open',
-      firstSeenAt: '2026-10-01T10:00:00Z',
-      lastSeenAt: '2026-11-12T08:00:00Z',
-      locations: [],
-    },
-  },
-  budget: {
-    day: '2026-11-12',
-    pagesScanned: 42,
-    attachmentsRead: 2,
-    attachmentsSkipped: 0,
-    llmCalls: 3,
-    tokens: 500,
-    costEstimate: 0.2,
-    skipped: [],
-  },
-  coverage: { perGite: [], blindSpots: [], missingRights: [] },
-  certificate: {
-    id: 'CERT-LIVE',
-    scope: 'PLACARDDEMO',
-    issuedAt: '2026-11-12T09:00:00Z',
-    open: 1,
-    rotated: 0,
-    redacted: 0,
-    purged: 0,
-    residualExposure: '—',
-    blindSpots: [],
-    contentHash: 'sha256:def',
-  },
-};
+import { demoLivePayload } from '../test-fixtures/live-payload.js';
 
 /** Un `fetch` mocké qui répond avec la charge utile live. */
 const fetchMock = vi.fn(async () =>
-  new Response(JSON.stringify(LIVE_PAYLOAD), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+  new Response(JSON.stringify(demoLivePayload()), { status: 200, headers: { 'Content-Type': 'application/json' } }),
 );
+
+/** Un `fetch` mocké qui répond avec une charge utile hors contrat. */
+const brokenFetchMock = vi.fn(async () => {
+  const broken = demoLivePayload();
+  delete broken['certificate'];
+  return new Response(JSON.stringify(broken), { status: 200, headers: { 'Content-Type': 'application/json' } });
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -98,7 +46,7 @@ describe('App — chemin live', () => {
       </LangProvider>,
     );
     expect(banner).toContain('LIVE');
-    expect(banner).toContain('one-atlas-cndz');
+    expect(banner).toContain('one-atlas-cndz.atlassian.net');
 
     const register = renderToStaticMarkup(
       <LangProvider>
@@ -107,7 +55,31 @@ describe('App — chemin live', () => {
         </PlacardDataProvider>
       </LangProvider>,
     );
-    expect(register).toContain('Page live du site balayé');
+    expect(register).toContain('Runbook de démonstration');
     expect(register).not.toContain('Runbook — déploiement staging');
+  });
+});
+
+describe('App — contrat live non respecté', () => {
+  it('l’indicateur bascule sur SNAPSHOT et donne la raison', async () => {
+    vi.stubGlobal('fetch', brokenFetchMock);
+    const result = await fetchLive({
+      url: 'https://exemple.test/live',
+      fetchImpl: brokenFetchMock as unknown as typeof fetch,
+      retries: 0,
+      force: true,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('contract-mismatch');
+
+    const banner = renderToStaticMarkup(
+      <LangProvider>
+        <PlacardDataProvider>
+          <LiveStatusBanner />
+        </PlacardDataProvider>
+      </LangProvider>,
+    );
+    expect(banner).toContain('SNAPSHOT');
+    expect(banner).toContain('contract');
   });
 });
