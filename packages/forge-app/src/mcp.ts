@@ -70,7 +70,9 @@ export async function scanPage(payload: { pageId: string }): Promise<unknown> {
 
 export async function scanSpace(payload: { spaceKey: string; limit?: number }): Promise<unknown> {
   const ctx = await ctxRef();
-  const result = await runSweep(ctx, { mode: 'on-demand', scope: payload.spaceKey, maxPages: payload.limit ?? 25 });
+  // Un espace se balaie par CQL (`space = …`) : le régime « à la demande »
+  // attend, lui, un identifiant de page — l'utiliser ici ne scannerait rien.
+  const result = await runSweep(ctx, { mode: 'full', scope: payload.spaceKey, maxPages: payload.limit ?? 25 });
   return {
     spaceKey: payload.spaceKey,
     pagesScanned: result.pagesScanned,
