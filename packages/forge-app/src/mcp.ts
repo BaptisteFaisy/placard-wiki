@@ -26,6 +26,7 @@ import {
   redactionPreview,
   registryRows,
   runSweep,
+  surfaceViewsForFingerprint,
 } from './services/index';
 import type { ServiceContext } from './services/ports';
 
@@ -109,18 +110,43 @@ export async function getFinding(payload: { findingId: string }): Promise<unknow
   return { view: visibleTo(canRead, foyer, owner?.ownerRef), ritual };
 }
 
+/**
+ * Trace une empreinte : les emplacements **du site** et les **surfaces
+ * externes** connues (PW-31).
+ *
+ * Le rendu porte la méthode et la source de chaque observation — jamais une
+ * valeur brute. Quand les empreintes ne sont pas comparables (namespaces
+ * différents), l'outil le dit au lieu de rendre une liste vide qui ferait
+ * croire à une absence de fuite.
+ */
 export async function traceFingerprint(payload: { fingerprint: string }): Promise<unknown> {
   const ctx = await ctxRef();
   const foyer = await ctx.store.findings.byFingerprint(payload.fingerprint);
-  if (foyer === null) return { fingerprint: payload.fingerprint, locations: [] };
+  const { views, match } = await surfaceViewsForFingerprint(ctx, payload.fingerprint);
   return {
     fingerprint: payload.fingerprint,
-    family: foyer.family,
-    locations: foyer.locations.map((l) => ({
+    ...(foyer !== null ? { family: foyer.family } : {}),
+    locations: foyer === null ? [] : foyer.locations.map((l) => ({
       containerType: l.containerType, pageId: l.pageId,
       versionNumber: l.versionNumber, gite: l.gite, status: l.status,
       maskedPreview: l.maskedPreview,
     })),
+    surfaces: views,
+    namespace: {
+      id: ctx.namespace.id,
+      shared: ctx.namespace.shared,
+      ...(ctx.namespace.shared ? {} : {
+        caveat:
+          'Empreintes propres à cette installation : une autre surface ne produit la même ' +
+          'empreinte que si elle partage la clé du namespace (PW-31).',
+      }),
+    },
+    comparison: {
+      comparable: match.comparable,
+      namespaces: match.namespaces,
+      divergent: match.divergent,
+      message: match.message,
+    },
   };
 }
 

@@ -24,6 +24,15 @@ export interface SurfaceRegistry {
   listByFingerprint(fingerprint: string): Promise<SurfaceSeen[]>;
   /** Les observations rattachées à un foyer wiki. */
   listByFoyer(foyerId: string): Promise<SurfaceSeen[]>;
+  /**
+   * Les observations d'un **emplacement** (surface + identifiant externe),
+   * toutes empreintes confondues.
+   *
+   * C'est ce qui permet de dire « le même fichier a été vu sous deux
+   * empreintes différentes » — donc sous deux namespaces différents, donc
+   * avec deux clés qui ne se rejoignent pas (PW-31).
+   */
+  listByLocation(surface: SurfaceSeen['surface'], externalId: string): Promise<SurfaceSeen[]>;
 }
 
 /** L'identifiant d'un emplacement chez une surface (« le même endroit »). */
@@ -68,6 +77,12 @@ export function createMemorySurfaceRegistry(): SurfaceRegistry {
     },
     async listByFoyer(foyerId) {
       const rows = [...state.rows.values()].filter((row) => row.foyerId === foyerId);
+      return sorted(rows);
+    },
+    async listByLocation(surface, externalId) {
+      const rows = [...state.rows.values()].filter(
+        (row) => row.surface === surface && row.externalId === externalId,
+      );
       return sorted(rows);
     },
   };

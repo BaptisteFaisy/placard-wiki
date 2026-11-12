@@ -28,6 +28,7 @@ import { computePageExposure } from './exposure';
 import { scoreFoyer } from './scoring';
 import { emptyAccumulator, scanPageInto } from './scan-page';
 import type { ScanAccumulator } from './scan-page';
+import { recordConfluenceSurfaces } from './surfaces';
 
 /** Paramètres d'un balayage borné. */
 export interface SweepParams {
@@ -158,6 +159,9 @@ async function finalizeFoyers(
     });
     const withSpace = exposure === null ? scored : { ...scored, spaceKey: exposure.spaceKey };
     await ctx.store.saveFoyer(withSpace);
+    // Le wiki est aussi une surface : le foyer s'y inscrit (PW-31), pour que
+    // l'empreinte puisse ensuite être retrouvée sur les surfaces externes.
+    await recordConfluenceSurfaces(ctx, withSpace);
   }
   return foyers.length;
 }
