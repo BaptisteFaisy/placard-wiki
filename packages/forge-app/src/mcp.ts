@@ -29,7 +29,7 @@ import {
 } from './services/index';
 import type { ServiceContext } from './services/ports';
 
-const ctxRef = (): ServiceContext => getServiceContext();
+const ctxRef = (): Promise<ServiceContext> => getServiceContext();
 
 /** Vue d'un foyer pour un agent : empreinte, aperçu masqué, famille, score et termes. */
 function foyerView(foyer: Foyer): Record<string, unknown> {
@@ -55,7 +55,7 @@ async function canReadFoyer(ctx: ServiceContext, foyer: Foyer): Promise<boolean>
 }
 
 export async function scanPage(payload: { pageId: string }): Promise<unknown> {
-  const ctx = ctxRef();
+  const ctx = await ctxRef();
   await runSweep(ctx, { mode: 'on-demand', scope: payload.pageId, maxPages: 1 });
   const foyers = await ctx.store.listFoyers({ limit: 200 });
   const onPage = foyers.filter((f) => f.locations.some((l) => l.pageId === payload.pageId));
@@ -69,7 +69,7 @@ export async function scanPage(payload: { pageId: string }): Promise<unknown> {
 }
 
 export async function scanSpace(payload: { spaceKey: string; limit?: number }): Promise<unknown> {
-  const ctx = ctxRef();
+  const ctx = await ctxRef();
   const result = await runSweep(ctx, { mode: 'on-demand', scope: payload.spaceKey, maxPages: payload.limit ?? 25 });
   return {
     spaceKey: payload.spaceKey,
@@ -84,7 +84,7 @@ export async function scanSpace(payload: { spaceKey: string; limit?: number }): 
 export async function listExposedSecrets(payload: {
   spaceKey?: string; minScore?: number; state?: string; limit?: number;
 }): Promise<unknown> {
-  const ctx = ctxRef();
+  const ctx = await ctxRef();
   const { rows } = await registryRows(ctx, {
     limit: payload.limit ?? 50,
     sort: 'score',
@@ -97,7 +97,7 @@ export async function listExposedSecrets(payload: {
 }
 
 export async function getFinding(payload: { findingId: string }): Promise<unknown> {
-  const ctx = ctxRef();
+  const ctx = await ctxRef();
   const foyer = await ctx.store.getFoyer(payload.findingId);
   if (foyer === null) return { error: 'foyer-introuvable' };
   const canRead = await canReadFoyer(ctx, foyer);
@@ -108,7 +108,7 @@ export async function getFinding(payload: { findingId: string }): Promise<unknow
 }
 
 export async function traceFingerprint(payload: { fingerprint: string }): Promise<unknown> {
-  const ctx = ctxRef();
+  const ctx = await ctxRef();
   const foyer = await ctx.store.findings.byFingerprint(payload.fingerprint);
   if (foyer === null) return { fingerprint: payload.fingerprint, locations: [] };
   return {
@@ -123,14 +123,14 @@ export async function traceFingerprint(payload: { fingerprint: string }): Promis
 }
 
 export async function getExposure(payload: { pageId: string }): Promise<unknown> {
-  const ctx = ctxRef();
+  const ctx = await ctxRef();
   const stored = await ctx.store.exposures.get(payload.pageId);
   if (stored !== null) return stored;
   return computePageExposure(ctx.confluence, payload.pageId, '', { siteUsers: ctx.siteUsers });
 }
 
 export async function getCertificate(payload: { spaceKey?: string; site?: boolean }): Promise<unknown> {
-  const ctx = ctxRef();
+  const ctx = await ctxRef();
   const scope = payload.site === true || payload.spaceKey === undefined ? 'site' : payload.spaceKey;
   const existing = await ctx.store.certificates.latest(scope);
   return existing ?? generateCertificate(ctx, scope);
@@ -138,7 +138,7 @@ export async function getCertificate(payload: { spaceKey?: string; site?: boolea
 
 /** Le seul outil qui accepte du texte — jamais stocké, jamais journalisé (§17). */
 export async function checkText(payload: { text: string }): Promise<unknown> {
-  const ctx = ctxRef();
+  const ctx = await ctxRef();
   // Aucune persistance, aucun journal : le texte ne quitte pas cette exécution.
   const candidates = scanItem(
     { containerType: 'page', field: 'text', text: payload.text },
@@ -159,7 +159,7 @@ export async function checkText(payload: { text: string }): Promise<unknown> {
 export async function recordRotation(payload: {
   findingId: string; provider: string; evidenceRef: string;
 }): Promise<unknown> {
-  const ctx = ctxRef();
+  const ctx = await ctxRef();
   // L'attestation est un fait humain (§9). Un agent (surface MCP) est refusé ;
   // une personne atteste depuis l'écran du rituel (résolveur `ritual/attest`).
   return attestRotation(ctx, {
@@ -172,27 +172,27 @@ export async function recordRotation(payload: {
 }
 
 export async function requestRedaction(payload: { findingId: string; scope?: string }): Promise<unknown> {
-  const ctx = ctxRef();
+  const ctx = await ctxRef();
   return redactionPreview(ctx, payload.findingId);
 }
 
 export async function applyRedaction(payload: {
   findingId: string; approvedBy: string; comment: string;
 }): Promise<unknown> {
-  const ctx = ctxRef();
+  const ctx = await ctxRef();
   return applyRedactionService(ctx, payload.findingId, payload.approvedBy, payload.comment);
 }
 
 export async function dismissFinding(payload: {
   findingId: string; reason: string; reviewAt: string;
 }): Promise<unknown> {
-  const ctx = ctxRef();
+  const ctx = await ctxRef();
   return dismiss(ctx, payload.findingId, payload.reason, payload.reviewAt, ctx.actor().accountId ?? 'inconnu');
 }
 
 export async function openRemediationTicket(payload: {
   findingId: string; projectKey: string;
 }): Promise<unknown> {
-  const ctx = ctxRef();
+  const ctx = await ctxRef();
   return openTicket(ctx, payload.findingId, payload.projectKey);
 }

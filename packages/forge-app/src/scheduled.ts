@@ -19,7 +19,7 @@ const INCREMENTAL_SLICE = 200;
 
 export async function incrementalSweep(): Promise<void> {
   console.info('[placard] incremental-sweep (CQL lastModified >= dernier balayage)');
-  const ctx = getServiceContext();
+  const ctx = await getServiceContext();
   const result = await runSweep(ctx, { mode: 'incremental', scope: 'site', maxPages: INCREMENTAL_SLICE });
   console.info(
     `[placard] incrémental pages=${String(result.pagesScanned)} done=${String(result.done)}`,
