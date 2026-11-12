@@ -17,7 +17,7 @@ import type {
   ScanBudget,
   SweepCursor,
 } from './types';
-import type { FoyerState, WikiFamily } from './vocabulary';
+import type { FoyerState, Gite, OwnerMethod, SharingState, WikiFamily } from './vocabulary';
 
 /** Réglages par espace (§16 PW-24). */
 export interface SpaceSettings {
@@ -51,10 +51,12 @@ export interface RegistryRow {
   inHistory: boolean;
   readersLow: number;
   readersHigh: number;
-  sharing: string;
+  /** État de partage de la page (§8) — énumération fermée (contrat live). */
+  sharing: SharingState;
   aiSurface: boolean;
   ownerRef?: string;
-  ownerMethod?: string;
+  /** Méthode de résolution du propriétaire (§12) — énumération fermée. */
+  ownerMethod?: OwnerMethod;
   lastSeenAt: string;
 }
 
@@ -74,7 +76,7 @@ export interface RedactionDiff {
 
 /** Couverture par gîte : ce qui est lu, ce qui ne l'est pas, et pourquoi (§19). */
 export interface CoverageReport {
-  perGite: Array<{ gite: string; scanned: number; skipped: number; reason?: string }>;
+  perGite: Array<{ gite: Gite; scanned: number; skipped: number; reason?: string }>;
   /** Angles morts déclarés : whiteboards, bases Confluence, captures d'écran… */
   blindSpots: string[];
   /** Droits manquants : distingués de « pas de données » (§19). */
