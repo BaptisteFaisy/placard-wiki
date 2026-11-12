@@ -162,6 +162,9 @@ function memoryPageScans(s: MemoryState): ForgeStore['pageScans'] {
     async put(record: PageScanRecord) {
       s.pageScans.set(record.pageId, record);
     },
+    async listSkipped() {
+      return [...s.pageScans.values()].filter((r) => r.skippedReason !== undefined);
+    },
   };
 }
 
@@ -176,6 +179,9 @@ function memoryAttachmentScans(s: MemoryState): ForgeStore['attachmentScans'] {
       if (idx >= 0) list[idx] = record;
       else list.push(record);
       s.attachmentScans.set(record.pageId, list);
+    },
+    async listSkipped() {
+      return [...s.attachmentScans.values()].flat().filter((r) => r.readState !== 'read');
     },
   };
 }

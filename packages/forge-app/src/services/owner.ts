@@ -20,6 +20,13 @@ export const GRAPH_ACCESS_NOTE =
   'Teamwork Graph interrogé en lecture seule (read:graph:document, read:graph:project) ' +
   'au nom d’un utilisateur connecté — droits à valider semaine 1 (§22).';
 
+/**
+ * Caveat d'un droit manquant sur le graphe (§19) : « pas de droit » n'est pas
+ * « pas de données ». Produit par le port réel comme par les tests.
+ */
+export const GRAPH_MISSING_RIGHT_CAVEAT =
+  'Droit manquant sur le Teamwork Graph (§19) : « pas de droit » ≠ « pas de données ».';
+
 /** Construit une résolution (horodatée par le port `clock`). */
 function resolution(
   pageId: string,
