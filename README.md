@@ -47,6 +47,12 @@ cible — voir `docs/ARCHITECTURE.md`).
 | `packages/demo-space` | Espace de démonstration semé par script (la démo **et** l'oracle de test) |
 | `packages/forge-app/skills/before-sharing-a-page` | Skill ouvert pour les agents qui écrivent dans Confluence |
 
+## Voir le produit
+
+Tester sans rien installer : le site de démonstration public
+<https://baptistefaisy.github.io/placard-wiki/> montre le registre, le bâtiment,
+le rituel en démo locale et le certificat — données 100 % synthétiques.
+
 ## Développement
 
 Prérequis : Node ≥ 22, pnpm 9 (via corepack), Python 3 (gardes CI).

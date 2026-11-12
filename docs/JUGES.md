@@ -5,9 +5,18 @@
 > Ce guide accompagne la **soumission** (avant le mardi 22 décembre 2026, 21 h,
 > Paris). Les éléments marqués *(placeholder)* y seront complétés au moment du
 > dépôt : lien d'installation réel, identifiants de démonstration. État du dépôt
-> à l'heure où ces lignes sont écrites : le socle est en place et les lots
-> fonctionnels sont en cours — la recette publique suivra
-> [`RECETTE-25.md`](RECETTE-25.md), jamais l'inverse.
+> à l'heure où ces lignes sont écrites : les huit paquets sont implémentés et
+> mergés, le site de démonstration public est en ligne — la recette publique
+> suit [`RECETTE-25.md`](RECETTE-25.md), jamais l'inverse.
+
+## Tester le produit sans rien installer (en dehors du chrono)
+
+**Site de démonstration public** :
+<https://baptistefaisy.github.io/placard-wiki/> — registre, bâtiment, rituel en
+démo locale, certificat. Données 100 % synthétiques (fixtures `demo-space`,
+§15) : de quoi comprendre le produit en deux minutes, sans installation, sans
+site Confluence, sans identifiants. Le chrono ci-dessous, lui, se joue sur
+**l'app installée** dans votre site, avec l'espace de démonstration semé.
 
 ## Avant de commencer (0 min, en dehors du chrono)
 
