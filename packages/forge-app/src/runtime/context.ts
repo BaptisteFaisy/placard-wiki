@@ -12,7 +12,7 @@
 
 import { asApp, asUser, assumeTrustedRoute, __getRuntime } from '@forge/api';
 import type { ConfluenceClient } from '@placard-wiki/wiki-source';
-import { createCachedOracle, ORACLE_SYSTEM_PROMPT_FR } from '@placard-wiki/detectors';
+import { createCachedOracle, createBudgetedOracle, ORACLE_SYSTEM_PROMPT_FR } from '@placard-wiki/detectors';
 import type { CachedOracle, LlmOracle, LlmOracleQuestion, LlmOracleVerdict } from '@placard-wiki/detectors';
 import { effectiveHmacKey } from '@placard-wiki/surfaces';
 import type { FingerprintNamespace } from '@placard-wiki/surfaces';
@@ -38,6 +38,30 @@ import type {
   ServiceContext, TeamworkGraphPort,
 } from '../services/ports';
 import { GRAPH_MISSING_RIGHT_CAVEAT } from '../services/owner';
+
+/**
+ * Budget d'oracle **par passe** (§14) : nombre maximal d'appels au modèle.
+ *
+ * Mesuré le 13 novembre 2026 : une passe de 200 pages a déclenché 89 appels
+ * au modèle, et la passe durait 13 minutes — presque tout en attente du
+ * modèle. Le budget borne le coût et la durée ; les candidats non questionnés
+ * restent **maintenus** (prudence), jamais devinés.
+ */
+const ORACLE_BUDGET_PER_PASS = 20;
+
+/**
+ * Budget d'oracle d'un **déclencheur planifié** : 600 s, dans les 900 s que
+ * la plateforme accorde au déclencheur. Le temps est une dimension du budget :
+ * le relais répond en 2 à 13 s, parfois plus de 20 s.
+ */
+const ORACLE_BUDGET_DEADLINE_MS = 600_000;
+
+/**
+ * Budget d'oracle d'un **webtrigger** : la plateforme ne donne que 55 s à la
+ * fonction, et la passe en ligne (25 pages ambiguës) les consomme vite. Trois
+ * appels et 20 s : au-delà, le candidat reste maintenu et la passe finit.
+ */
+export const ORACLE_BUDGET_WEBTRIGGER = { maxCalls: 3, deadlineMs: 20_000 } as const;
 
 /** Modèle hébergé (§19) — nom exact à valider avec `forge lint`. */
 const LLM_MODEL = 'claude-3-haiku';
@@ -338,7 +362,7 @@ function currentActor(): ActorContext {
 }
 
 /** Assemble le contexte : la clé HMAC est résolue AVANT (elle conditionne les empreintes). */
-async function buildContext(): Promise<ServiceContext> {
+async function buildContext(options?: ContextOptions): Promise<ServiceContext> {
   const hmac = await resolveHmacKey();
   console.info(
     `[placard] clé HMAC : source=${hmac.source} namespace=${hmac.namespace.id} ` +
@@ -346,7 +370,11 @@ async function buildContext(): Promise<ServiceContext> {
   );
   const store: ForgeStore = createForgeStore();
   const confluence = createConfluence();
-  const oracle: CachedOracle = createCachedOracle(createLlmOracle(), { hmacKey: hmac.key });
+  const budget = options?.oracle ?? { maxCalls: ORACLE_BUDGET_PER_PASS, deadlineMs: ORACLE_BUDGET_DEADLINE_MS };
+  const oracle: CachedOracle = createCachedOracle(
+    createBudgetedOracle(createLlmOracle(), budget),
+    { hmacKey: hmac.key },
+  );
   return {
     store,
     confluence,
@@ -373,15 +401,27 @@ async function buildContext(): Promise<ServiceContext> {
 }
 
 /**
+ * Options du contexte : le **budget d'oracle** de l'invocation (§14).
+ *
+ * Le budget dépend du **cadre** : un déclencheur planifié a 900 s, un
+ * webtrigger 55 s. Le même contexte est mis en cache par invocation : le
+ * premier appel fixe le budget.
+ */
+export interface ContextOptions {
+  /** Nombre maximal d'appels au modèle et délai consacré au modèle. */
+  oracle?: { maxCalls: number; deadlineMs: number };
+}
+
+/**
  * Construit (et met en cache) le contexte de service Forge. Asynchrone : la
  * clé HMAC est lue depuis la variable statique ou persistée en base avant la
  * première empreinte — une clé regenerated à chaque invocation ferait dériver
  * toutes les empreintes.
  */
-export function getServiceContext(): Promise<ServiceContext> {
+export function getServiceContext(options?: ContextOptions): Promise<ServiceContext> {
   if (cachedContext !== null) return Promise.resolve(cachedContext);
   if (pendingContext === null) {
-    pendingContext = buildContext().then(
+    pendingContext = buildContext(options).then(
       (ctx) => {
         cachedContext = ctx;
         return ctx;

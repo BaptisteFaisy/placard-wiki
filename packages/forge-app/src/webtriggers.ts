@@ -19,11 +19,10 @@
  * au manifeste (`pw-purge-request`).
  */
 
-import { Queue } from '@forge/events';
-
-import { getServiceContext, probeConfluence } from './runtime/context';
+import { getServiceContext, ORACLE_BUDGET_WEBTRIGGER, probeConfluence } from './runtime/context';
 import { denyReason, scopeForPath } from './runtime/confluence-access';
 import { allProbePaths } from './runtime/probe-paths';
+import { pushSweepEvent } from './runtime/queue';
 import {
   buildingModel, coverageReport, generateCertificate, maskText, registryRows, runSweep,
 } from './services/index';
@@ -79,9 +78,6 @@ const CORS_HEADERS: Record<string, string[]> = {
 const CONTRACT_HEADERS: Record<string, string[]> = {
   [LIVE_CONTRACT_HEADER]: [LIVE_CONTRACT_VERSION],
 };
-
-/** File de balayage long (§19 : module `consumer`, queue `pw-sweep-queue`). */
-const SWEEP_QUEUE = 'pw-sweep-queue';
 
 /** Une demande de purge vue par l'administrateur (empreinte, jamais la valeur). */
 interface AdminPurgeLine {
@@ -226,14 +222,13 @@ interface RefreshReport {
 async function queueSweep(scope: string | string[] | undefined): Promise<string | null> {
   const value = Array.isArray(scope) ? scope[0] : scope;
   if (value === undefined || value === '') return null;
-  try {
-    await new Queue({ key: SWEEP_QUEUE }).push({ body: { mode: 'full', scope: value } });
-    console.info(`[placard] public-demo : passe « ${value} » mise en file.`);
-    return value;
-  } catch {
-    console.info(`[placard] public-demo : mise en file impossible pour « ${value} » — déclaré, pas masqué.`);
+  const mise = await pushSweepEvent({ mode: 'full', scope: value });
+  if (!mise.ok) {
+    console.info(`[placard] public-demo : mise en file impossible pour « ${value} » (${mise.reason}) — déclaré, pas masqué.`);
     return null;
   }
+  console.info(`[placard] public-demo : passe « ${value} » mise en file.`);
+  return value;
 }
 
 /**
@@ -307,7 +302,9 @@ export async function publicDemoHook(request: WebtriggerRequest): Promise<Webtri
   if (request.method === 'OPTIONS') {
     return { statusCode: 204, headers: { ...CORS_HEADERS }, body: '' };
   }
-  const ctx = await getServiceContext();
+  // Le webtrigger n'a que 55 s (limite plateforme) : le budget d'oracle de
+  // l'invocation est celui du webtrigger, pas celui du déclencheur planifié.
+  const ctx = await getServiceContext({ oracle: ORACLE_BUDGET_WEBTRIGGER });
   console.info(`[placard] public-demo-hook ${request.method} ${request.path}`);
   try {
     const refresh = await inlineSweep(ctx, request.queryParameters?.['sweep']);

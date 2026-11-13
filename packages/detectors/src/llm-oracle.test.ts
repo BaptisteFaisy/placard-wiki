@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fakeSuspiciousString, prng } from '@placard/core';
 
 import type { DetectionCandidate } from './types';
-import { buildQuestion, createCachedOracle, maskSpans } from './llm-oracle';
+import { buildQuestion, createBudgetedOracle, createCachedOracle, maskSpans } from './llm-oracle';
 import type { LlmOracle, LlmOracleVerdict } from './llm-oracle';
 
 const rand = prng('tests-llm-oracle');
@@ -102,5 +102,44 @@ describe('port LlmOracle — invite masquée et cache', () => {
       await cached.ask(buildQuestion(candidate(), context, HMAC_KEY));
     }
     expect(cached.stats().entries).toBe(2);
+  });
+});
+
+describe('budget d’oracle — le modèle n’est pas appelé au-delà du budget', () => {
+  it('au budget atteint, le modèle n’est plus appelé', async () => {
+    const oracle: LlmOracle = vi.fn(async () => VERDICT);
+    const budgeted = createBudgetedOracle(oracle, { maxCalls: 2 });
+    await budgeted(buildQuestion(candidate(), 'A', HMAC_KEY));
+    await budgeted(buildQuestion(candidate(), 'B', HMAC_KEY));
+    await budgeted(buildQuestion(candidate(), 'C', HMAC_KEY));
+    expect(oracle).toHaveBeenCalledTimes(2);
+  });
+
+  it('un candidat non questionné reste maintenu (jamais deviné)', async () => {
+    const oracle: LlmOracle = vi.fn(async () => VERDICT);
+    const budgeted = createBudgetedOracle(oracle, { maxCalls: 1 });
+    await budgeted(buildQuestion(candidate(), 'A', HMAC_KEY));
+    const answer = await budgeted(buildQuestion(candidate(), 'B', HMAC_KEY));
+    expect(answer.isSecret).toBe(true);
+    expect(answer.confidence).toBe(0);
+    expect(answer.reasonFr).toMatch(/budget/);
+  });
+
+  it('le budget temps arrête le modèle dans une invocation courte', async () => {
+    let instant = 0;
+    const oracle: LlmOracle = vi.fn(async () => {
+      instant += 10_000;
+      return VERDICT;
+    });
+    const budgeted = createBudgetedOracle(oracle, {
+      maxCalls: 10,
+      deadlineMs: 15_000,
+      now: () => instant,
+    });
+    await budgeted(buildQuestion(candidate(), 'A', HMAC_KEY));
+    await budgeted(buildQuestion(candidate(), 'B', HMAC_KEY));
+    await budgeted(buildQuestion(candidate(), 'C', HMAC_KEY));
+    // Deux appels à 10 s : le délai (15 s) est dépassé, le modèle n’est plus appelé.
+    expect(oracle).toHaveBeenCalledTimes(2);
   });
 });

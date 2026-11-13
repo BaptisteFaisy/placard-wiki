@@ -31,8 +31,26 @@ export const RELAY_URL_VARIABLE = 'PLACARD_RELAY_URL';
 /** Variable Forge qui porte le jeton de service du relais. */
 export const RELAY_TOKEN_VARIABLE = 'PLACARD_RELAY_TOKEN';
 
-/** Délai maximal d'un appel au relais (ms) — le relais en impose un lui aussi. */
-const RELAY_TIMEOUT_MS = 20_000;
+/**
+ * Délai amont du relais, en millisecondes : c'est le `DELAI_MAX_MS` du relais
+ * (r630). Passé ce délai, le relais coupe l'appel à InferHub et répond 504.
+ */
+export const RELAY_UPSTREAM_DEADLINE_MS = 25_000;
+
+/**
+ * Délai maximal d'un appel au relais **côté app** (ms).
+ *
+ * **Règle de cohérence** : le délai de l'app doit **dépasser** le délai amont
+ * du relais. Sinon l'app abandonne l'appel avant que le relais réponde, et le
+ * verdict est perdu alors que le relais allait répondre — mesuré le 13
+ * novembre 2026 : 5 abandons sur 134 appels, tous à 20,0 s pile, quand le
+ * relais répondait en 2 à 13 s pour les autres. L'app laisse donc toujours le
+ * relais répondre, même par un refus explicite (504), plutôt que d'abandonner.
+ *
+ * 30 s < 55 s (limite d'une action, d'un webtrigger ou d'un agent Forge) : il
+ * reste de la place pour la suite de l'invocation.
+ */
+export const RELAY_TIMEOUT_MS = 30_000;
 
 /** Ce que le relais a répondu : le texte, et les jetons s'il les annonce. */
 export interface RelayAnswer {
@@ -114,7 +132,12 @@ export async function askRelay(system: string, user: string): Promise<RelayAnswe
     return { text, tokens };
   } catch (erreur) {
     const nom = erreur instanceof Error ? erreur.name : 'erreur';
-    console.warn(`[placard] relais LLM : appel en échec (${nom}) — repli sur le LLM hébergé`);
+    // Un abandon de notre propre chrono se distingue d'une panne réseau :
+    // c'est le délai de l'app qui a fired, pas le relais qui a tombé.
+    const cause = nom === 'AbortError'
+      ? `délai de l'app dépassé (${String(RELAY_TIMEOUT_MS)} ms)`
+      : nom;
+    console.warn(`[placard] relais LLM : appel en échec (${cause}) — repli sur le LLM hébergé`);
     return null;
   } finally {
     clearTimeout(minuteur);

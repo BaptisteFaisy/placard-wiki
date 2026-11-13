@@ -56,6 +56,7 @@ export type { BlindSpot, WikiExtensionMatch } from './rules/attachments';
 export {
   ORACLE_SYSTEM_PROMPT_FR,
   buildQuestion,
+  createBudgetedOracle,
   createCachedOracle,
   maskSpans,
 } from './llm-oracle';
@@ -65,6 +66,7 @@ export type {
   LlmOracleQuestion,
   LlmOracleVerdict,
   OracleAnswer,
+  OracleBudgetOptions,
   OracleCacheOptions,
   OracleStats,
 } from './llm-oracle';
