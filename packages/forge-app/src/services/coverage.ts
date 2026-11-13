@@ -336,7 +336,9 @@ function methodOf(rows: readonly GiteCoverageRow[], percent: number | null, page
   const pagesRead = rows.reduce((total, row) => total + row.pagesRead, 0);
   const covered = gitesCoveredOf(rows);
   const formula = 'Couverture = (pages lues, tous gîtes) ÷ (gîtes visés × pages visées) = '
-    + `${String(pagesRead)} ÷ (${String(GITE_ORDER.length)} × ${String(pagesTargeted)}) = ${String(percent)} %.`;
+    + `${String(pagesRead)} ÷ (${String(GITE_ORDER.length)} × ${String(pagesTargeted)}) = ${String(percent)} %. `
+    + 'Mesure cumulée sur la journée : une passe sans nouveau contenu ne fait pas '
+    + 'retomber le chiffre.';
   return formula
     + ` ${String(covered)} gîte(s) couvert(s) sur ${String(GITE_ORDER.length)} : ${coveredList(rows)}.`
     + refusedList(rows)
