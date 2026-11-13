@@ -27,7 +27,7 @@ permissions:
 jobs:
   ci:
     name: ci
-    runs-on: [self-hosted, linux, x64, placard-wiki-worker]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -38,6 +38,13 @@ jobs:
           # vendor/placard est public : le sous-module est cloné anonymement
           # à l'étape suivante, pas par checkout (persist-credentials: false).
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '9.15.9'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
       - name: Sous-module vendor/placard (épinglé, profondeur 1)
         shell: bash
         run: git submodule update --init --depth 1
@@ -60,26 +67,10 @@ jobs:
           mkdir -p "$HOME/.cache/ci-tmp"
           echo "TMPDIR=$HOME/.cache/ci-tmp" >> "$GITHUB_ENV"
 
-      - name: Node du worker (hors PATH par défaut)
-        shell: bash
-        run: |
-          set -euo pipefail
-          NODE_BIN="$HOME/.local/node/bin"
-          if [ ! -x "$NODE_BIN/node" ]; then
-            echo "::error::Node introuvable dans $NODE_BIN (installation du worker absente)"
-            exit 1
-          fi
-          echo "$NODE_BIN" >> "$GITHUB_PATH"
-          "$NODE_BIN/node" --version
-
-      # Dépendances : pnpm via corepack, store persistant du runner ;
-      # réinstallation seulement si le verrou ou le sous-module change.
       - name: Dépendances (cache du runner, réinstallation si verrou changé)
         shell: bash
         run: |
           set -euo pipefail
-          corepack enable --install-directory "$HOME/.local/node/bin" >/dev/null 2>&1 || true
-          corepack prepare pnpm@9.15.9 --activate >/dev/null
           HASH="$(sha256sum pnpm-lock.yaml | cut -d' ' -f1)-$(git -C vendor/placard rev-parse HEAD)"
           STAMP="node_modules/.ci-lock-hash"
           if [ -d node_modules ] && [ -f "$STAMP" ] && [ "$(cat "$STAMP")" = "$HASH" ]; then
