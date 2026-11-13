@@ -48,21 +48,10 @@ import {
 } from './surface-rows';
 import type { SurfaceSeenRow } from './surface-rows';
 import { defaultSpaceSettings, rehydrate } from './memory-store';
+import { APP_SECRET_DDL } from './app-secret-sql';
 
 /** Cache page → espace (la table `finding` n'a pas de colonne `space_key`). */
 const spaceCache = new Map<string, string>();
-
-/**
- * DDL de la table technique de l'app : elle ne porte aucune donnée métier du
- * §20 (aucun secret, aucune empreinte) — uniquement le secret applicatif
- * persisté une fois (la clé HMAC, voir `runtime/secret.ts`). Elle reste dans
- * ce fichier, seul endroit du dépôt qui importe `@forge/sql`.
- */
-const APP_SECRET_DDL = `CREATE TABLE IF NOT EXISTS app_secret (
-  name TEXT,
-  value TEXT,
-  created_at TEXT
-)`;
 
 /** Promesse de migration du conteneur : créée une fois, réessayée si elle échoue. */
 let schemaReady: Promise<void> | null = null;
