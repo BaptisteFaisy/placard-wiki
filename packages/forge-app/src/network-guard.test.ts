@@ -18,6 +18,16 @@ const SRC = fileURLToPath(new URL('.', import.meta.url));
 /** Les hôtes autorisés en dur dans le code (URL d'affichage du site, rien de plus). */
 const HOTE_AUTORISE = new Set(['one-atlas-cndz.atlassian.net']);
 
+/**
+ * Le SEUL module qui parle au réseau : le relais LLM (la clé InferHub reste
+ * hors d'Atlassian). Il n'a droit qu'au `fetch` du SDK — jamais `http`, ni
+ * `axios`, ni une URL en dur : l'adresse vient d'une variable Forge.
+ */
+const MODULES_RESEAU_AUTORISES = new Set(['/runtime/llm-relay.ts']);
+
+/** Les hôtes que le manifeste autorise en sortie backend. */
+const HÔTES_SORTIE_AUTORISÉS = new Set(['r630-debian.tail3a8bdf.ts.net']);
+
 /** Les fournisseurs que le code ne doit **jamais** mentionner. */
 const FOURNISSEURS_INTERDITS = [
   'amazonaws.com', 'stripe.com', 'github.com', 'api.github.com',
@@ -78,9 +88,40 @@ describe('garde réseau — analyse de source du paquet Forge', () => {
 
   it('aucune primitive réseau directe (fetch, http, axios…)', () => {
     for (const fichier of fichiers) {
+      const reseauAutorise = MODULES_RESEAU_AUTORISES.has(fichier.path);
       for (const primitive of RESEAU_DIRECT) {
+        // Le relais a droit au `fetch` du SDK, et à rien d'autre.
+        if (reseauAutorise && primitive === 'fetch(') continue;
         expect(fichier.text, `${fichier.path} emploie ${primitive}`).not.toContain(primitive);
       }
+    }
+  });
+
+  it('le module du relais ne sort que par le fetch du SDK', () => {
+    for (const fichier of fichiers) {
+      if (!MODULES_RESEAU_AUTORISES.has(fichier.path)) continue;
+      for (const primitive of RESEAU_DIRECT) {
+        if (primitive === 'fetch(') continue;
+        expect(fichier.text, `${fichier.path} emploie ${primitive}`).not.toContain(primitive);
+      }
+      // Aucune URL en dur : l'adresse vient d'une variable Forge.
+      expect(fichier.text, `${fichier.path} contient une URL en dur`).not.toMatch(/https?:\/\//);
+    }
+  });
+
+  it('le manifeste n’autorise en sortie que le relais LLM', () => {
+    const manifeste = readFileSync(fileURLToPath(new URL('../manifest.yml', import.meta.url)), 'utf8');
+    const bloc = manifeste.match(/backend:\n((?:\s+(?:#[^\n]*)?\n)*(?:\s+-\s+[^\n]*\n)+)/);
+    expect(bloc, 'permissions.external.fetch.backend absent du manifeste').not.toBeNull();
+    const sorties = (bloc?.[1] ?? '')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.startsWith('- '))
+      .map((l) => l.slice(2).trim());
+    expect(sorties.length).toBeGreaterThan(0);
+    for (const sortie of sorties) {
+      const hote = (sortie.replace(/^https?:\/\//, '').split('/')[0] ?? '').split(':')[0] ?? '';
+      expect(HÔTES_SORTIE_AUTORISÉS.has(hote), `sortie backend ${hote} non autorisée`).toBe(true);
     }
   });
 

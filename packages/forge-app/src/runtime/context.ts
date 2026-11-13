@@ -22,6 +22,7 @@ import { createHmac } from 'node:crypto';
 import type { ClockPort, IdPort, StoragePort } from '@placard-wiki/ritual';
 
 import { createForgeConfluence } from './confluence';
+import { askRelay } from './llm-relay';
 import { appPurgeClient, appVersionReader } from './purge';
 import {
   createForgeStore, forgeSurfaceRegistry, readOrCreateAppSecret,
@@ -145,17 +146,28 @@ function parseVerdict(text: string): Partial<LlmOracleVerdict> | null {
   }
 }
 
-/** Oracle LLM hébergé : invite masquée, verdict JSON (§7, §14). */
+/**
+ * Oracle LLM : invite masquée, verdict JSON (§7, §14).
+ *
+ * La jambe principale est le **relais InferHub** (la clé ne quitte pas la
+ * machine qui la porte) ; le LLM hébergé de Forge reste le repli quand le
+ * relais n'est pas configuré ou ne répond pas. Un repli n'est jamais
+ * silencieux : le relais journalise son échec, l'appel reste truthful.
+ */
 function createLlmOracle(): LlmOracle {
   return async (question: LlmOracleQuestion): Promise<LlmOracleVerdict> => {
-    const response = await chat({
-      model: LLM_MODEL,
-      messages: [
-        { role: 'system', content: ORACLE_SYSTEM_PROMPT_FR },
-        { role: 'user', content: `Contexte masqué :\n${question.maskedContext}\n\nAperçu : ${question.maskedPreview}` },
-      ],
-    });
-    const parsed = parseVerdict(llmText(response));
+    const invite = `Contexte masqué :\n${question.maskedContext}\n\nAperçu : ${question.maskedPreview}`;
+    const reponse = await askRelay(ORACLE_SYSTEM_PROMPT_FR, invite);
+    const texte = reponse !== null
+      ? reponse.text
+      : llmText(await chat({
+        model: LLM_MODEL,
+        messages: [
+          { role: 'system', content: ORACLE_SYSTEM_PROMPT_FR },
+          { role: 'user', content: invite },
+        ],
+      }));
+    const parsed = parseVerdict(texte);
     if (parsed === null) {
       return { isSecret: true, reasonFr: 'réponse de l’oracle non exploitable — candidat maintenu', confidence: 0 };
     }

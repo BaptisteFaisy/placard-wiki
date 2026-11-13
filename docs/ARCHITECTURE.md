@@ -79,7 +79,7 @@ Ce que Forge impose, et la conséquence produit :
 | Payload | **5 Mo** ; 500 Ko depuis une interface custom | Les pièces jointes volumineuses sont listées et déclarées « non lues, et pourquoi » — jamais transportées entières |
 | Sorties réseau | **100 requêtes par minute** et par runtime | Le balayage est cadencé ; les appels Confluence sont paginés et bornés par tranche |
 | Déclencheurs planifiés | **5 au plus** par app, **un seul à 5 minutes** | L'incrémental prend le seul créneau de 5 min ; la passe complète est hebdomadaire |
-| LLM hébergé | Haiku, Sonnet, Opus ; 100 invites/min par installation | LLM sur les **seuls candidats ambigus** (familles 9 et 11), cache par empreinte de contenu — jamais le texte brut d'un secret dans une invite (§23) |
+| Modèle de l'oracle | **relais InferHub** (`combo/cheap`, jeton de service, la clé ne quitte pas la machine qui la porte) ; repli sur le LLM hébergé Forge si le relais ne répond pas | LLM sur les **seuls candidats ambigus** (familles 9 et 11), cache par empreinte de contenu — jamais le texte brut d'un secret dans une invite (§23) |
 | Modules Rovo | `rovo:mcp` et `rovo:skill` en **Preview** ; `rovo:agent` à fenêtre d'exécution courte | Les outils MCP sont des lectures bornées (`limit`, curseurs) ; aucune passe longue derrière un outil |
 | Teamwork Graph | Lecture GraphQL **au nom d'un utilisateur connecté** ; un droit manquant ne provoque pas d'erreur mais **vide le résultat** | L'écran de couverture distingue « pas de droit » de « pas de données » (recette 18) ; l'app ne fournit jamais de connecteur et n'ingère rien dans le graphe (§12) |
 
@@ -87,6 +87,17 @@ Le manifeste (`packages/forge-app/manifest.yml`) est une esquisse : noms de
 modules, scopes OAuth et chemins d'API v1/v2 passent par `forge lint` et le
 prototype de la semaine 1 avant d'être tenus pour vrais — voir
 [`VALIDATION-22.md`](VALIDATION-22.md).
+
+**La jambe modèle de l'app (l'oracle).** Forge n'accepte, pour sortir vers un
+fournisseur, que l'authentification `oauth2` — une clé statique `sk-…` comme
+celle d'InferHub n'y a pas de place. L'oracle passe donc par un **relais**
+(`r630`, `~/.config/placard-relay.env`, exposé en HTTPS via `tailscale funnel`),
+qui garde la clé InferHub et rend l'appel en format compatible OpenAI. L'app
+Forge ne parle qu'au relais (`permissions.external.fetch.backend`, un seul hôte)
+avec un jeton de service (variable Forge `PLACARD_RELAY_TOKEN`, hors du dépôt) ;
+si le relais est absent ou ne répond pas, elle retombe sur le LLM hébergé, sans
+jamais cacher le repli. La garde `network-guard.test.ts` verrouille l'hôte
+autorisé et le module du relais.
 
 ## 4. Flux : détection → foyer → exposition → rituel → certificat
 

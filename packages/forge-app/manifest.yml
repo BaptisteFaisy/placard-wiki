@@ -17,6 +17,14 @@ app:
   licensing:
     enabled: false
 
+# Variables d'environnement de l'app : posées par `forge variables set`, jamais
+# dans le dépôt. Elles portent l'adresse du relais LLM et son jeton de service —
+# la clé InferHub, elle, ne quitte jamais la machine qui la porte (le relais).
+environment:
+  variables:
+    - PLACARD_RELAY_URL
+    - PLACARD_RELAY_TOKEN
+
 modules:
   # ------------------------------------------------------------------ fonctions
   function:
@@ -514,6 +522,14 @@ resources:
     path: src/ui/certificate-macro.tsx
 
 permissions:
+  external:
+    fetch:
+      backend:
+        # Le relais LLM (r630) : la clé InferHub reste hors d'Atlassian, l'app
+        # Forge ne parle qu'au relais, jamais au fournisseur. La garde réseau
+        # (`network-guard.test.ts`) verrouille cette liste et le module qui
+        # l'utilise — une sortie vers un autre hôte casse la CI.
+        - https://r630-debian.tail3a8bdf.ts.net
   scopes:
     # Contenu, pièces jointes, espaces, restrictions, modèles, recherche,
     # utilisateurs — noms EXACTS validés par `forge lint` le 12 novembre 2026
