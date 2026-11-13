@@ -284,8 +284,14 @@ export const DICT = {
   covCoverageTitle: D('Real coverage', 'Couverture réelle'),
   covIndeterminate: D('No pass yet — coverage undetermined (never 0 %).', 'Aucune passe — couverture indéterminée (jamais 0 %).'),
   covHidingPlacesCovered: D('hiding places covered', 'gîtes couverts'),
-  covPagesReadLabel: D('Pages read', 'Pages lues'),
-  covPagesTargetedLabel: D('Pages targeted', 'Pages visées'),
+  // Deux nombres qui disaient l'impossible : « 81 pages lues · 16 pages visées ».
+  // `pagesRead` compte des lectures (page × gîte), `pagesTargeted` des pages ; le
+  // dénominateur du pourcentage est gîtes visés × pages visées. On affiche donc
+  // les trois, dans la même unité, pour que le ratio se vérifie à l'œil.
+  covReadsTargeted: D(
+    '{read} reads of {targeted} targeted ({pages} pages × {gites} hiding places)',
+    '{read} lectures sur {targeted} visées ({pages} pages × {gites} gîtes)',
+  ),
   covMethodLabel: D('Method', 'Méthode'),
   covPerGite: D('Coverage by hiding place (last pass)', 'Couverture par gîte (dernière passe)'),
   covGite: D('Hiding place', 'Gîte'),
@@ -328,7 +334,8 @@ export const DICT = {
   liveReasonUnknown: D('unknown error', 'erreur inconnue'),
   liveRefresh: D('Refresh', 'Rafraîchir'),
   liveRefreshing: D('Refreshing…', 'Rafraîchissement…'),
-  liveAutoRefreshNote: D('auto-refresh every 2 min', 'rafraîchissement automatique toutes les 2 min'),
+  // `{n}` est rempli depuis `LIVE_REFRESH_MS` : le libellé ne peut plus mentir.
+  liveAutoRefreshNote: D('auto-refresh every {n} min', 'rafraîchissement automatique : {n} min'),
   liveDemoSiteWarning: D('demo site, fake secrets', 'site de démonstration, faux secrets'),
   liveDemoSiteNote: D(
     'The live data comes from a real Atlassian demo site (one-atlas-cndz) and its PLACARDDEMO space, which contains FAKE secrets planted for the demo. Masked previews only — no raw value is ever stored, displayed or sent.',

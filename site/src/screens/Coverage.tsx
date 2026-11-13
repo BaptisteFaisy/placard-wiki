@@ -19,6 +19,15 @@ function StateLabel({ state }: { state: GiteCoverageState }): JSX.Element {
   return <span className={`gite-state gite-${state}`}>{t(key)}</span>;
 }
 
+/**
+ * Un nombre avec séparateur de milliers (espace), stable quelle que soit la
+ * locale du navigateur : la méthode du rapport écrit « 13 471 », la ligne du
+ * haut doit écrire pareil.
+ */
+function groupThousands(value: number): string {
+  return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+
 /** La couverture réelle, en grand : un pourcentage, jamais un 0 % muet. */
 function CoverageBig({ coverage }: { coverage: CoverageReportAffichee }): JSX.Element {
   const { t } = useLang();
@@ -29,13 +38,26 @@ function CoverageBig({ coverage }: { coverage: CoverageReportAffichee }): JSX.El
       </p>
     );
   }
+  // Numérateur et dénominateur du pourcentage, dans la MÊME unité : `pagesRead`
+  // compte des lectures (page × gîte), `pagesTargeted` des pages. Afficher
+  // « 81 pages lues · 16 pages visées » laissait croire à un ratio impossible ;
+  // on montre donc le produit visé (gîtes × pages), celui de la méthode.
+  const read = coverage.pagesRead;
+  const pages = coverage.pagesTargeted;
+  const gites = coverage.gitesTotal;
+  const readsLine = read !== undefined && pages !== undefined && pages > 0 && gites > 0
+    ? t('covReadsTargeted')
+      .replace('{read}', groupThousands(read))
+      .replace('{targeted}', groupThousands(pages * gites))
+      .replace('{pages}', groupThousands(pages))
+      .replace('{gites}', groupThousands(gites))
+    : null;
   return (
     <p className="coverage-big">
       <strong className="coverage-percent">{coverage.coveragePercent.toLocaleString(undefined, { maximumFractionDigits: 1 })} %</strong>
       <span className="coverage-sub">
         {' '}{coverage.gitesCovered}/{coverage.gitesTotal} {t('covHidingPlacesCovered')}
-        {coverage.pagesRead !== undefined ? <> · {coverage.pagesRead} {t('covPagesReadLabel')}</> : null}
-        {coverage.pagesTargeted !== undefined ? <> · {coverage.pagesTargeted} {t('covPagesTargetedLabel')}</> : null}
+        {readsLine !== null ? <> · {readsLine}</> : null}
       </span>
     </p>
   );

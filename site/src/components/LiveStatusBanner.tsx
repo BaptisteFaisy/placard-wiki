@@ -9,6 +9,7 @@ import { useLang } from '../i18n.js';
 import { usePlacardData } from '../data/placard-data.js';
 import type { LiveReason } from '../lib/live.js';
 import { EXPECTED_CONTRACT_VERSION } from '../lib/contract.js';
+import { LIVE_REFRESH_MS } from '../lib/live-config.js';
 import type { DictKey } from '../i18n-dict.js';
 
 /** Raison d'un échec → clé de dictionnaire (bilingue, défaut anglais). */
@@ -82,7 +83,7 @@ export function LiveStatusBanner(): JSX.Element {
       <span className="live-status-text">{text}</span>
       {live && (
         <span className="live-status-extra">
-          {t('liveAutoRefreshNote')} — {t('liveDemoSiteWarning')}
+          {t('liveAutoRefreshNote').replace('{n}', String(Math.round(LIVE_REFRESH_MS / 60_000)))} — {t('liveDemoSiteWarning')}
         </span>
       )}
       <button type="button" className="live-refresh" onClick={refresh} disabled={refreshing}>
