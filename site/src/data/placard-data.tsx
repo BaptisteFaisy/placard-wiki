@@ -30,7 +30,7 @@ export interface PlacardData {
 
 const PlacardDataContext = createContext<PlacardData | null>(null);
 
-/** Fournisseur : charge le live au montage, rafraîchit toutes les 2 min. */
+/** Fournisseur : charge le live au montage, rafraîchit à la cadence `LIVE_REFRESH_MS`. */
 export function PlacardDataProvider({ children }: { children: ReactNode }): ReactNode {
   const [refreshing, setRefreshing] = useState(false);
   const [state, setState] = useState(getLiveState());
@@ -42,8 +42,8 @@ export function PlacardDataProvider({ children }: { children: ReactNode }): Reac
     void fetchLive({ force: true }).finally(() => setRefreshing(false));
   }, []);
 
-  // Premier chargement + auto-refresh cadence (2 min) — seulement si l'URL
-  // est configurée : sans réseau, le site reste 100 % statique.
+  // Premier chargement + auto-refresh (cadence `LIVE_REFRESH_MS`) — seulement
+  // si l'URL est configurée : sans réseau, le site reste 100 % statique.
   useEffect(() => {
     if (liveApiUrl() === '') return;
     void fetchLive();
