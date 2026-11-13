@@ -17,6 +17,7 @@
 import type { Gite } from '@placard-wiki/domain';
 
 import { giteScanFromRow, giteScanToRow } from './serialize';
+import { mergeGiteScan } from './gite-scan';
 import type { ForgeStore, GiteCoverageLine, GiteScanRecord, GiteScanRow } from './ports';
 
 /** DDL de la table technique de couverture par gîte (§6). */
@@ -120,7 +121,11 @@ export function createGiteScansRepo(
 ): ForgeStore['giteScans'] {
   return {
     async put(record: GiteScanRecord) {
-      const row = giteScanToRow(record);
+      // Cumul à la journée : la ligne du jour garde la plus haute mesure vue
+      // (une passe incrémentale vide ne doit pas retomber à 0 %).
+      const existing = await select<GiteScanRow>('SELECT * FROM gite_scan WHERE gite = ?', [record.gite]);
+      const previous = existing[0] === undefined ? undefined : giteScanFromRow(existing[0]);
+      const row = giteScanToRow(mergeGiteScan(previous, record));
       await mutate('DELETE FROM gite_scan WHERE gite = ?', [row.gite]);
       await mutate(
         'INSERT INTO gite_scan (gite, pages_read, pages_unread, pages_inaccessible, reason, pass_at) VALUES (?,?,?,?,?,?)',

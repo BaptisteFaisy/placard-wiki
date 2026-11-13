@@ -190,3 +190,41 @@ describe('couverture réelle — la raison d’un refus est « pas de droit »',
       .toBe('page introuvable par la recherche Confluence');
   });
 });
+
+describe('couverture cumulée sur la journée', () => {
+  it('une passe vide ne fait pas retomber la couverture à 0 %', async () => {
+    const ctx = makeTestContext();
+    const gite = GITE_ORDER[0];
+    if (gite === undefined) throw new Error('ordre des gîtes vide');
+    // Une passe qui lit 12 pages.
+    await ctx.store.giteScans.put(record({
+      gite, pagesRead: 12, passAt: '2026-11-12T10:00:00.000Z',
+    }));
+    const avant = await coverageReport(ctx);
+    expect(avant.coveragePercent).toBeGreaterThan(0);
+
+    // Une passe incrémentale sans nouveau contenu : 0 page lue.
+    await ctx.store.giteScans.put(record({
+      gite, pagesRead: 0, passAt: '2026-11-12T10:05:00.000Z',
+    }));
+    const apres = await coverageReport(ctx);
+    expect(apres.coveragePercent).toBe(avant.coveragePercent);
+    expect(apres.gitesCovered).toBe(avant.gitesCovered);
+    expect(apres.pagesRead).toBe(avant.pagesRead);
+  });
+
+  it('un jour nouveau repart de zéro (la mesure n’est pas reportée)', async () => {
+    const ctx = makeTestContext();
+    const gite = GITE_ORDER[0];
+    if (gite === undefined) throw new Error('ordre des gîtes vide');
+    await ctx.store.giteScans.put(record({
+      gite, pagesRead: 12, passAt: '2026-11-12T10:00:00.000Z',
+    }));
+    await ctx.store.giteScans.put(record({
+      gite, pagesRead: 0, passAt: '2026-11-13T09:00:00.000Z',
+    }));
+    const rapport = await coverageReport(ctx);
+    expect(rapport.pagesRead).toBe(0);
+    expect(rapport.gitesCovered).toBe(0);
+  });
+});

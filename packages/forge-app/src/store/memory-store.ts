@@ -7,6 +7,7 @@
  * Chaque dépôt est une fonction séparée pour rester sous la limite de taille.
  */
 
+import { mergeGiteScan } from './gite-scan';
 import type {
   AttachmentScanRecord,
   Certificate,
@@ -308,7 +309,8 @@ function memoryGiteCoverage(s: MemoryState): ForgeStore['giteCoverage'] {
 function memoryGiteScans(s: MemoryState): ForgeStore['giteScans'] {
   return {
     async put(record: GiteScanRecord) {
-      s.giteScans.set(record.gite, record);
+      // Cumul à la journée : une passe vide n'efface pas la mesure (§ gite-scan).
+      s.giteScans.set(record.gite, mergeGiteScan(s.giteScans.get(record.gite), record));
     },
     async list() {
       return [...s.giteScans.values()];
