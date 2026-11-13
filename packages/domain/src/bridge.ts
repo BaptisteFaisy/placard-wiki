@@ -17,7 +17,7 @@ import type {
   ScanBudget,
   SweepCursor,
 } from './types';
-import type { FoyerState, WikiFamily } from './vocabulary';
+import type { FoyerState, Gite, OwnerMethod, SharingState, WikiFamily } from './vocabulary';
 
 /** Réglages par espace (§16 PW-24). */
 export interface SpaceSettings {
@@ -51,10 +51,12 @@ export interface RegistryRow {
   inHistory: boolean;
   readersLow: number;
   readersHigh: number;
-  sharing: string;
+  /** État de partage de la page (§8) — énumération fermée (contrat live). */
+  sharing: SharingState;
   aiSurface: boolean;
   ownerRef?: string;
-  ownerMethod?: string;
+  /** Méthode de résolution du propriétaire (§12) — énumération fermée. */
+  ownerMethod?: OwnerMethod;
   lastSeenAt: string;
 }
 
@@ -74,12 +76,64 @@ export interface RedactionDiff {
 
 /** Couverture par gîte : ce qui est lu, ce qui ne l'est pas, et pourquoi (§19). */
 export interface CoverageReport {
-  perGite: Array<{ gite: string; scanned: number; skipped: number; reason?: string }>;
+  readonly perGite: ReadonlyArray<{ gite: Gite; scanned: number; skipped: number; reason?: string }>;
   /** Angles morts déclarés : whiteboards, bases Confluence, captures d'écran… */
   blindSpots: string[];
   /** Droits manquants : distingués de « pas de données » (§19). */
   missingRights: string[];
   lastPassAt?: string;
+}
+
+/**
+ * L'état d'un gîte, tel que la passe l'a mesuré — jamais déduit (§6, §14).
+ *
+ * Trois états mesurés, jamais mélangés : `read` (lu), `unread` (accessible
+ * mais pas entièrement lisible), `inaccessible` (accès refusé — « pas de
+ * droit », pas « pas de données »). Et un quatrième cas, qui n'est pas un
+ * état de lecture mais une absence de mesure : `not-attempted`.
+ */
+export type GiteCoverageState = 'read' | 'unread' | 'inaccessible' | 'not-attempted';
+
+/**
+ * Le détail mesuré d'un gîte : lu, non lu, inaccessible — la matière
+ * première du pourcentage de couverture (§14, §19).
+ */
+export interface GiteCoverageDetail {
+  /** Pages où le gîte a été lu. */
+  pagesRead: number;
+  /** Pages accessibles dont une partie n'a pas pu être lue. */
+  pagesUnread: number;
+  /** Pages où l'accès a été refusé (droits manquants). */
+  pagesInaccessible: number;
+  /** L'état, en clair. */
+  state: GiteCoverageState;
+}
+
+/** Une ligne de couverture : la forme du domaine, plus la mesure du gîte. */
+export type GiteCoverageRow = CoverageReport['perGite'][number] & GiteCoverageDetail;
+
+/**
+ * Le rapport de couverture : la forme du domaine, plus le pourcentage et SA
+ * méthode (§14, §19).
+ *
+ * `coveragePercent` est `null` quand la couverture est INDÉTERMINÉE (aucune
+ * passe enregistrée) — jamais 0 %, qui dirait « rien trouvé » alors que rien
+ * n'a été regardé.
+ */
+export interface CoverageReportReelle extends CoverageReport {
+  readonly perGite: readonly GiteCoverageRow[];
+  /** La couverture réelle, en % (null = indéterminée, jamais 0 %). */
+  coveragePercent: number | null;
+  /** Gîtes effectivement couverts (au moins une page lue). */
+  gitesCovered: number;
+  /** Gîtes visés (§6). */
+  gitesTotal: number;
+  /** La méthode, en clair : un pourcentage sans sa méthode ne vaut rien. */
+  method: string;
+  /** Pages visées par la passe qui a produit la mesure. */
+  pagesTargeted: number;
+  /** Pages lues, tous gîtes confondus. */
+  pagesRead: number;
 }
 
 /** Le bâtiment, en données (§10) : le registre porte la même information. */

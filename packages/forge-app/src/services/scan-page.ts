@@ -19,16 +19,36 @@ import type {
   AttachmentScanRecord,
   ContainerType,
   ContentField,
+  Gite,
   PageScanRecord,
   WikiFamily,
 } from '@placard-wiki/domain';
 import type { WikiDetection, WikiPageMeta } from '@placard-wiki/propagation';
 
 import type { ServiceContext } from './ports';
+import { describeGiteFailure } from './coverage';
 import type { GiteCoverageLine } from '../store/ports';
 
 /** Version déclarée du moteur de détection (colonne `detectors_version`). */
 export const DETECTORS_VERSION = 'wiki-detectors-1';
+
+/**
+ * Ce qu'un gîte a donné sur une page : lu, accessible mais pas entièrement lu,
+ * ou inaccessible. C'est la MATIÈRE PREMIÈRE de la couverture réelle — elle
+ * est comptée page par page, jamais estimée (§14, §19).
+ */
+export interface GiteOutcome {
+  /** Le gîte (§6). */
+  gite: Gite;
+  /** Pages où le gîte a été lu. */
+  pagesRead: number;
+  /** Pages accessibles dont une partie n'a pas pu être lue (binaire, taille…). */
+  pagesUnread: number;
+  /** Pages où l'accès a été refusé — droits manquants, pas « pas de données ». */
+  pagesInaccessible: number;
+  /** Raisons distinctes (jamais de valeur, jamais de texte de page). */
+  reasons: string[];
+}
 
 /** Accumulateur d'une passe de balayage. */
 export interface ScanAccumulator {
@@ -46,11 +66,18 @@ export interface ScanAccumulator {
   attachmentsRead: number;
   attachmentsSkipped: number;
   /**
-   * Couverture par gîte (§6) : ce que la passe a **réellement** lu.
+   * Couverture par gîte (§6) : ce que la passe a **réellement** lu, en
+   * ÉLÉMENTS (un corps de page, une pièce jointe, un commentaire).
    * Clé = nom de gîte ; la valeur porte les compteurs et, si le gîte a été
    * illisible, la raison exacte (scope manquant, chemin retiré…).
    */
   gites: Map<string, GiteCoverageLine>;
+  /**
+   * Ce que chaque gîte a donné, page par page — la couverture mesurée.
+   * C'est la mesure qui porte le pourcentage : elle dit, pour chaque gîte,
+   * combien de PAGES ont été lues, illisibles ou refusées.
+   */
+  giteOutcomes: Map<Gite, GiteOutcome>;
 }
 
 export function emptyAccumulator(): ScanAccumulator {
@@ -59,13 +86,14 @@ export function emptyAccumulator(): ScanAccumulator {
     blindSpots: [], testFingerprints: new Set(), knownFakeFingerprints: new Set(),
     pageSpace: new Map(), attachmentsRead: 0, attachmentsSkipped: 0,
     gites: new Map(),
+    giteOutcomes: new Map(),
   };
 }
 
 /** Note la lecture (ou l'échec) d'un gîte dans l'accumulateur de la passe. */
 export function noteGite(
   acc: ScanAccumulator,
-  gite: string,
+  gite: Gite,
   scanned: number,
   reason?: string,
 ): void {
@@ -76,6 +104,26 @@ export function noteGite(
     skipped: previous?.skipped ?? 0,
     ...(reason !== undefined ? { reason } : previous?.reason !== undefined ? { reason: previous.reason } : {}),
   });
+}
+
+/**
+ * Agrège le résultat d'un gîte (une page) dans l'accumulateur de la passe.
+ *
+ * Compteur de PAGES : c'est la mesure qui porte le pourcentage de couverture
+ * et son dénominateur (§14, §19).
+ */
+export function accumulateGiteOutcome(acc: ScanAccumulator, outcome: GiteOutcome): void {
+  const current = acc.giteOutcomes.get(outcome.gite);
+  if (current === undefined) {
+    acc.giteOutcomes.set(outcome.gite, { ...outcome, reasons: [...outcome.reasons] });
+    return;
+  }
+  current.pagesRead += outcome.pagesRead;
+  current.pagesUnread += outcome.pagesUnread;
+  current.pagesInaccessible += outcome.pagesInaccessible;
+  for (const reason of outcome.reasons) {
+    if (!current.reasons.includes(reason)) current.reasons.push(reason);
+  }
 }
 
 /** ScannedItem (wiki-source) → ScanItem (detectors). */
@@ -109,16 +157,59 @@ function toDetection(item: ScannedItem, c: DetectionCandidate, detectedAt: strin
   return out;
 }
 
-/** Interroge l'oracle sur un candidat ambigu (famille 9/11) — invite masquée. */
+/**
+ * Découpe les intervalles des autres candidats pour qu'aucun ne chevauche le
+ * span du candidat qui pose question — sans pour autant l'écarter : une règle
+ * large (un tableau d'identifiants) peut contenir la valeur ambiguë, et c'est
+ * elle qui masque le reste. Écarter la règle large laisserait les autres
+ * valeurs du tableau en clair dans l'invite.
+ */
+function sansChevauchement(
+  candidats: readonly DetectionCandidate[],
+  prioritaire: DetectionCandidate,
+): Array<{ charStart: number; charEnd: number; family: string }> {
+  const out: Array<{ charStart: number; charEnd: number; family: string }> = [];
+  for (const autre of candidats) {
+    if (autre === prioritaire) continue;
+    const avant = autre.charStart < prioritaire.charStart && autre.charEnd > prioritaire.charStart;
+    const apres = autre.charEnd > prioritaire.charEnd && autre.charStart < prioritaire.charEnd;
+    if (!avant && !apres) {
+      out.push({ charStart: autre.charStart, charEnd: autre.charEnd, family: autre.family });
+      continue;
+    }
+    if (autre.charStart < prioritaire.charStart) {
+      out.push({ charStart: autre.charStart, charEnd: prioritaire.charStart, family: autre.family });
+    }
+    if (autre.charEnd > prioritaire.charEnd) {
+      out.push({ charStart: prioritaire.charEnd, charEnd: autre.charEnd, family: autre.family });
+    }
+  }
+  return out;
+}
+
+/**
+ * Interroge l'oracle sur un candidat ambigu (famille 9/11) — invite masquée.
+ *
+ * ⚠ Le contexte masqué couvre **tous** les candidats détectés dans l'élément,
+ * pas seulement celui qui pose question. Sinon une valeur voisine (une clé
+ * cloud dans le même tableau d'identifiants) resterait en clair dans l'invite
+ * envoyée au modèle — mesuré le 12 novembre 2026, c'est ce que la preuve de
+ * non-fuite a mis au jour.
+ *
+ * Le span du candidat qui pose question passe en premier : il gagne tout
+ * chevauchement, pour qu'aucune valeur ne survive au masquage.
+ */
 async function resolveAmbiguous(
   ctx: ServiceContext,
   item: ScannedItem,
   candidate: DetectionCandidate,
+  candidats: readonly DetectionCandidate[],
   acc: ScanAccumulator,
 ): Promise<void> {
   if (item.text === undefined) return;
   const maskedContext = maskSpans(item.text, [
     { charStart: candidate.charStart, charEnd: candidate.charEnd, family: candidate.family },
+    ...sansChevauchement(candidats, candidate),
   ]);
   const question = buildQuestion(candidate, maskedContext, ctx.hmacKey);
   const answer = await ctx.oracle.ask(question);
@@ -163,7 +254,7 @@ export async function scanOneItem(
   const candidates = scan === null ? [] : scanItem(scan, { hmacKey: ctx.hmacKey, disabledFamilies: disabled });
   for (const c of candidates) {
     if (c.isKnownFake) acc.knownFakeFingerprints.add(c.fingerprint);
-    if (c.ambiguous) await resolveAmbiguous(ctx, item, c, acc);
+    if (c.ambiguous) await resolveAmbiguous(ctx, item, c, candidates, acc);
     acc.detections.push(toDetection(item, c, detectedAt));
   }
   recordAttachment(acc, item, candidates.length);
@@ -176,7 +267,7 @@ function pageMetaOf(pageId: string, title: string, createdAt: string): WikiPageM
 
 /** Un gîte de la page et son lecteur (§6) — lu un par un, jamais tout ou rien. */
 interface GiteReader {
-  gite: string;
+  gite: Gite;
   read: (client: ConfluenceClient, pageId: string) => Promise<ScannedItem[]>;
 }
 
@@ -212,13 +303,42 @@ async function readPageGites(
       const read = await gite.read(ctx.confluence, pageId);
       items.push(...read);
       noteGite(acc, gite.gite, read.length);
+      accumulateGiteOutcome(acc, outcomeOf(gite.gite, read));
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
+      const raw = error instanceof Error ? error.message : String(error);
+      const reason = describeGiteFailure(raw);
       failures.push(`« ${gite.gite} » : ${reason}`);
-      noteGite(acc, gite.gite, 0, reason);
+      noteGite(acc, gite.gite, 0, raw);
+      accumulateGiteOutcome(acc, {
+        gite: gite.gite,
+        pagesRead: 0,
+        pagesUnread: 0,
+        pagesInaccessible: 1,
+        reasons: [reason],
+      });
     }
   }
   return { items, failures };
+}
+
+/**
+ * Le verdict d'un gîte sur UNE page : lu, partiellement lu, ou inaccessible.
+ *
+ * Un gîte dont un élément n'a pas pu être lu (binaire, trop volumineux) n'est
+ * pas « lu » : il est *partiellement* lu. Un gîte inaccessible est un accès
+ * refusé — droits manquants, jamais « pas de données » (§25.18).
+ */
+function outcomeOf(gite: Gite, items: readonly ScannedItem[]): GiteOutcome {
+  const reasons = [...new Set(items
+    .filter((item) => item.skippedReason !== undefined)
+    .map((item) => item.skippedReason as string))];
+  return {
+    gite,
+    pagesRead: reasons.length === 0 ? 1 : 0,
+    pagesUnread: reasons.length === 0 ? 0 : 1,
+    pagesInaccessible: 0,
+    reasons,
+  };
 }
 
 /**

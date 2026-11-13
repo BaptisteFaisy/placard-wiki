@@ -25,7 +25,9 @@ import type {
 import { FAMILY_LABELS } from '@placard-wiki/domain';
 import type { SpaceSettings } from '@placard-wiki/domain';
 
-import type { ForgeStore, GiteCoverageLine, ListFoyersQuery } from './ports';
+import type {
+  ForgeStore, GiteCoverageLine, GiteScanRecord, ListFoyersQuery,
+} from './ports';
 
 /** Toutes les familles du domaine (§7) — pour les réglages par défaut. */
 const ALL_FAMILIES = Object.keys(FAMILY_LABELS) as WikiFamily[];
@@ -64,6 +66,7 @@ export interface MemoryState {
   certificates: Map<string, Certificate>;
   cursors: Map<string, SweepCursor>;
   budgets: Map<string, ScanBudget>;
+  giteScans: Map<string, GiteScanRecord>;
   settings: Map<string, SpaceSettings>;
   giteCoverage: Map<string, GiteCoverageLine>;
 }
@@ -74,7 +77,7 @@ function emptyState(): MemoryState {
     exposures: new Map(), pageScans: new Map(), attachmentScans: new Map(),
     ritualSteps: new Map(), purgeRequests: new Map(), owners: new Map(),
     certificates: new Map(), cursors: new Map(), budgets: new Map(), settings: new Map(),
-    giteCoverage: new Map(),
+    giteCoverage: new Map(), giteScans: new Map(),
   };
 }
 
@@ -282,6 +285,7 @@ function giteKey(day: string, gite: string): string {
   return `${day}|${gite}`;
 }
 
+/** Mesure fine, par élément, cumulée sur la journée (§6). */
 function memoryGiteCoverage(s: MemoryState): ForgeStore['giteCoverage'] {
   return {
     async get(day: string, gite: string) {
@@ -296,6 +300,18 @@ function memoryGiteCoverage(s: MemoryState): ForgeStore['giteCoverage'] {
         .filter(([key]) => key.startsWith(prefix))
         .map(([, line]) => line)
         .sort((a, b) => a.gite.localeCompare(b.gite));
+    },
+  };
+}
+
+/** Mesure par page de la dernière passe (§6, §14) — base du pourcentage. */
+function memoryGiteScans(s: MemoryState): ForgeStore['giteScans'] {
+  return {
+    async put(record: GiteScanRecord) {
+      s.giteScans.set(record.gite, record);
+    },
+    async list() {
+      return [...s.giteScans.values()];
     },
   };
 }
@@ -328,6 +344,7 @@ export function createMemoryStore(): ForgeStore {
     cursors: memoryCursors(s),
     budget: memoryBudget(s),
     giteCoverage: memoryGiteCoverage(s),
+    giteScans: memoryGiteScans(s),
     settings: memorySettings(s),
     async saveFoyer(foyer: Foyer) {
       const enriched = rehydrate(foyer, spaceOf);

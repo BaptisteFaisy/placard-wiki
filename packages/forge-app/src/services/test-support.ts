@@ -18,6 +18,8 @@ import type { ClockPort, IdPort, StoragePort } from '@placard-wiki/ritual';
 import { createMemoryStore } from '../store/memory-store';
 import type { ForgeStore } from '../store/ports';
 import type { Foyer } from '@placard-wiki/domain';
+import { createMemorySurfaceRegistry, resolveNamespace } from '@placard-wiki/surfaces';
+import type { FingerprintNamespace } from '@placard-wiki/surfaces';
 import { runSweep } from './sweep';
 import type {
   AccessPort, ActorContext, JiraPort, OwnerSourcePort, RealtimePort,
@@ -161,6 +163,8 @@ export interface TestContextOptions {
   ownerSource?: OwnerSourcePort;
   /** Graphe injecté (défaut : aucun propriétaire, caveat de test). */
   graph?: TeamworkGraphPort;
+  /** Namespace d'empreinte injecté (défaut : namespace propre à l'installation). */
+  namespace?: FingerprintNamespace;
 }
 
 /** Contexte de service entièrement factice, pour les tests. */
@@ -178,10 +182,16 @@ export function makeTestContext(options: TestContextOptions = {}): ServiceContex
   const ownerSource = options.ownerSource ?? testOwnerSource();
   const graph = options.graph ?? testGraph();
   const actor = options.actor ?? { kind: 'human' as const, accountId: 'ari:identity::alice' };
+  const namespace = options.namespace ?? resolveNamespace({
+    installationId: 'installation-de-test',
+    source: 'absent',
+  });
   return {
     store,
     confluence,
     hmacKey,
+    namespace,
+    surfaces: createMemorySurfaceRegistry(),
     clock,
     ids,
     storage,

@@ -3,19 +3,48 @@
 // est déclarée, jamais masquée ; les DROITS MANQUANTS sont distingués de
 // « pas de données ».
 
-import type { CoverageReport } from '@placard-wiki/domain';
+import type { CoverageReportReelle, GiteCoverageRow, GiteCoverageState } from '@placard-wiki/domain';
 
-/** Rapport de couverture de la dernière passe (synthétique). */
-export const COVERAGE: CoverageReport = {
+/**
+ * L'état d'un gîte et sa ligne : les types viennent du domaine — une seule
+ * source, pour que le site et l'app racontent la même chose.
+ */
+export type { GiteCoverageRow, GiteCoverageState };
+
+/**
+ * Le rapport de couverture affiché : celui du domaine (le pourcentage, SA
+ * méthode et le détail gîte par gîte), en lecture seule pour l'écran.
+ *
+ * `coveragePercent` est `null` quand la couverture est INDÉTERMINÉE (aucune
+ * passe) — jamais 0 %, qui dirait « rien trouvé » alors que rien n'a été
+ * regardé.
+ */
+export interface CoverageReportAffichee extends CoverageReportReelle {
+  readonly perGite: readonly GiteCoverageRow[];
+}
+
+/** Le rapport de couverture de la dernière passe (synthétique, mode snapshot). */
+export const COVERAGE: CoverageReportAffichee = {
   perGite: [
-    { gite: 'corps-de-page', scanned: 4820, skipped: 0 },
-    { gite: 'commentaires', scanned: 1533, skipped: 0 },
-    { gite: 'pieces-jointes', scanned: 117, skipped: 9, reason: 'Binaire sans texte, taille dépassée ou conteneur chiffré — détail dans l’onglet Budget.' },
-    { gite: 'historique-de-versions', scanned: 2140, skipped: 310, reason: 'Droits administrateur manquants sur l’espace ARCH — les versions existent, elles ne sont pas lisibles par l’app.' },
-    { gite: 'modeles-de-page', scanned: 38, skipped: 0 },
-    { gite: 'titres-et-etiquettes', scanned: 4820, skipped: 0 },
-    { gite: 'description-espace', scanned: 3, skipped: 0 },
+    { gite: 'corps-de-page', scanned: 4820, skipped: 0, pagesRead: 4820, pagesUnread: 0, pagesInaccessible: 0, state: 'read' },
+    { gite: 'commentaires', scanned: 1533, skipped: 0, pagesRead: 1533, pagesUnread: 0, pagesInaccessible: 0, state: 'read' },
+    { gite: 'pieces-jointes', scanned: 117, skipped: 9, pagesRead: 117, pagesUnread: 9, pagesInaccessible: 0, state: 'unread', reason: 'Binaire sans texte, taille dépassée ou conteneur chiffré — détail dans l’onglet Budget.' },
+    { gite: 'historique-de-versions', scanned: 2140, skipped: 310, pagesRead: 2140, pagesUnread: 310, pagesInaccessible: 0, state: 'unread', reason: 'Droits administrateur manquants sur l’espace ARCH — les versions existent, elles ne sont pas lisibles par l’app.' },
+    { gite: 'modeles-de-page', scanned: 38, skipped: 0, pagesRead: 38, pagesUnread: 0, pagesInaccessible: 0, state: 'read' },
+    { gite: 'titres-et-etiquettes', scanned: 4820, skipped: 0, pagesRead: 4820, pagesUnread: 0, pagesInaccessible: 0, state: 'read' },
+    { gite: 'description-espace', scanned: 3, skipped: 0, pagesRead: 3, pagesUnread: 0, pagesInaccessible: 0, state: 'read' },
   ],
+  coveragePercent: 39.9,
+  gitesCovered: 7,
+  gitesTotal: 7,
+  pagesTargeted: 4820,
+  pagesRead: 13471,
+  method:
+    'Couverture = (pages lues, tous gîtes) ÷ (gîtes visés × pages visées) = 13 471 ÷ (7 × 4 820) = 39,9 %. '
+    + '7 gîte(s) couvert(s) sur 7 : Corps de page (4820/4820 pages lues), Commentaires (1533/1533 pages lues), '
+    + 'Pièces jointes (117/126 pages lues), Historique de versions (2140/2450 pages lues), '
+    + 'Modèles de page (38/38 pages lues), Titres et étiquettes (4820/4820 pages lues), '
+    + 'Description d’espace, page d’accueil (3/3 pages lues).',
   blindSpots: [
     'Whiteboards Confluence (22 dans la démo) : inaccessibles depuis Forge — non balayés, déclarés angles morts (§29 PW-29).',
     'Bases Confluence (4 tables) : non balayées — hors périmètre de l’installation, déclaré.',

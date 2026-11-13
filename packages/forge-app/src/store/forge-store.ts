@@ -24,51 +24,34 @@ import type {
   SweepCursorRow,
 } from '@placard-wiki/domain';
 import type {
-  AttachmentScanRecord, Certificate, Foyer, FoyerLocation, OwnerResolution,
+  AttachmentScanRecord, Certificate, Foyer, FoyerLocation, Gite, OwnerResolution,
   PageExposure, PageScanRecord, PurgeRequest, RitualStepState, ScanBudget,
   SweepCursor,
 } from '@placard-wiki/domain';
 import type { SpaceSettings } from '@placard-wiki/domain';
+import type { SurfaceRegistry } from '@placard-wiki/surfaces';
 
-import type { ForgeStore, GiteCoverageLine, ListFoyersQuery } from './ports';
+import type { ForgeStore, ListFoyersQuery } from './ports';
+import {
+  GITE_COVERAGE_DDL, GITE_SCAN_DDL, createGiteCoverageRepo, createGiteScansRepo,
+} from './gite-coverage-sql';
 import {
   attachmentScanFromRow, attachmentScanToRow, budgetFromRow, budgetToRow,
   certificateFromRow, certificateToRow, cursorFromRow, cursorToRow,
-  exposureFromRow, exposureToRow, foyerFromRow, foyerToRow, locationFromRow,
-  locationToRow, ownerFromRow, ownerToRow, pageScanFromRow, pageScanToRow,
-  purgeRequestFromRow, purgeRequestToRow, ritualStepFromRow, ritualStepToRow,
+  exposureFromRow, exposureToRow, foyerFromRow, foyerToRow,
+  locationFromRow, locationToRow, ownerFromRow, ownerToRow,
+  pageScanFromRow, pageScanToRow, purgeRequestFromRow, purgeRequestToRow,
+  ritualStepFromRow, ritualStepToRow,
 } from './serialize';
+import {
+  SURFACE_SEEN_DDL, surfaceSeenFromRow, surfaceSeenToRow,
+} from './surface-rows';
+import type { SurfaceSeenRow } from './surface-rows';
 import { defaultSpaceSettings, rehydrate } from './memory-store';
+import { APP_SECRET_DDL } from './app-secret-sql';
 
 /** Cache page → espace (la table `finding` n'a pas de colonne `space_key`). */
 const spaceCache = new Map<string, string>();
-
-/**
- * DDL de la table technique de l'app : elle ne porte aucune donnée métier du
- * §20 (aucun secret, aucune empreinte) — uniquement le secret applicatif
- * persisté une fois (la clé HMAC, voir `runtime/secret.ts`). Elle reste dans
- * ce fichier, seul endroit du dépôt qui importe `@forge/sql`.
- */
-const APP_SECRET_DDL = `CREATE TABLE IF NOT EXISTS app_secret (
-  name TEXT,
-  value TEXT,
-  created_at TEXT
-)`;
-
-/**
- * DDL de la table technique de couverture par gîte (§6).
- *
- * Elle ne porte aucune donnée métier : un gîte, deux compteurs et une raison
- * de non-lecture. Elle est technique comme `app_secret` — le schéma métier du
- * §20 reste celui du domaine (`TABLE_DDL`), cette table n'y touche pas.
- */
-const GITE_COVERAGE_DDL = `CREATE TABLE IF NOT EXISTS gite_coverage (
-  day TEXT,
-  gite TEXT,
-  scanned INTEGER,
-  skipped INTEGER,
-  reason TEXT
-)`;
 
 /** Promesse de migration du conteneur : créée une fois, réessayée si elle échoue. */
 let schemaReady: Promise<void> | null = null;
@@ -81,6 +64,8 @@ export async function initSchema(): Promise<void> {
   }
   runner.enqueue('v001_app_secret', APP_SECRET_DDL);
   runner.enqueue('v001_gite_coverage', GITE_COVERAGE_DDL);
+  runner.enqueue('v001_gite_scan', GITE_SCAN_DDL);
+  runner.enqueue('v001_surface_seen', SURFACE_SEEN_DDL);
   await runner.run();
 }
 
@@ -95,7 +80,7 @@ function ensureSchema(): Promise<void> {
   if (schemaReady === null) {
     schemaReady = initSchema().then(
       () => {
-        console.info('[placard] schéma SQL prêt (onze tables du §20 + app_secret).');
+        console.info('[placard] schéma SQL prêt (onze tables du §20 + app_secret + surface_seen).');
       },
       (error: unknown) => {
         schemaReady = null; // la passe suivante retente la migration
@@ -114,9 +99,10 @@ async function select<T>(query: string, params: unknown[]): Promise<T[]> {
 }
 
 /** Exécute une mutation paramétrée (INSERT/UPDATE/DELETE). */
-async function mutate(query: string, params: unknown[]): Promise<void> {
+async function mutate(query: string, params: unknown[]): Promise<UpdateQueryResponse> {
   await ensureSchema();
-  await (sql.prepare(query).bindParams(...(params as never[])).execute() as Promise<Result<UpdateQueryResponse>>);
+  const res = (await sql.prepare(query).bindParams(...(params as never[])).execute()) as Result<UpdateQueryResponse>;
+  return res.rows;
 }
 
 function spaceOfFn(pageId: string): string | undefined {
@@ -382,47 +368,6 @@ function forgeBudget(): ForgeStore['budget'] {
   };
 }
 
-/** Ligne brute de la table technique `gite_coverage`. */
-interface GiteCoverageRow {
-  day: string;
-  gite: string;
-  scanned: number;
-  skipped: number;
-  reason: string | null;
-}
-
-function forgeGiteCoverage(): ForgeStore['giteCoverage'] {
-  return {
-    async get(day: string, gite: string) {
-      const rows = await select<GiteCoverageRow>('SELECT * FROM gite_coverage WHERE day = ? AND gite = ? LIMIT 1', [day, gite]);
-      const row = rows[0];
-      if (row === undefined) return null;
-      return {
-        gite: row.gite,
-        scanned: Number(row.scanned),
-        skipped: Number(row.skipped),
-        ...(row.reason === null ? {} : { reason: row.reason }),
-      };
-    },
-    async put(line: ForgeStore['giteCoverage'] extends never ? never : GiteCoverageLine, day: string) {
-      await mutate('DELETE FROM gite_coverage WHERE day = ? AND gite = ?', [day, line.gite]);
-      await mutate(
-        'INSERT INTO gite_coverage (day, gite, scanned, skipped, reason) VALUES (?,?,?,?,?)',
-        [day, line.gite, line.scanned, line.skipped, line.reason ?? null],
-      );
-    },
-    async list(day: string) {
-      const rows = await select<GiteCoverageRow>('SELECT * FROM gite_coverage WHERE day = ? ORDER BY gite ASC', [day]);
-      return rows.map((row) => ({
-        gite: row.gite,
-        scanned: Number(row.scanned),
-        skipped: Number(row.skipped),
-        ...(row.reason === null ? {} : { reason: row.reason }),
-      }));
-    },
-  };
-}
-
 const settingsMap = new Map<string, SpaceSettings>();
 
 function forgeSettings(): ForgeStore['settings'] {
@@ -432,6 +377,58 @@ function forgeSettings(): ForgeStore['settings'] {
     },
     async put(value: SpaceSettings) {
       settingsMap.set(value.spaceKey, value);
+    },
+  };
+}
+
+/**
+ * Le registre multi-surfaces (PW-31) : la table `surface_seen`.
+ *
+ * L'identifiant d'un emplacement est le couple (surface, external_id) :
+ * ré-enregistrer le même emplacement remplace la ligne au lieu d'en créer
+ * une deuxième — la première observation est conservée, la dernière mise à
+ * jour.
+ */
+export function forgeSurfaceRegistry(): SurfaceRegistry {
+  return {
+    async record(seen) {
+      const row = surfaceSeenToRow(seen);
+      // Mise à jour d'abord (une seule requête dans le cas courant), insertion
+      // seulement si l'emplacement était inconnu : la première observation est
+      // conservée, la dernière est rafraîchie.
+      const updated = (await mutate(
+        'UPDATE surface_seen SET label = ?, namespace_id = ?, foyer_id = ?, state = ?, method = ?, source = ?, last_seen_at = ? WHERE fingerprint = ? AND surface = ? AND external_id = ?',
+        [row.label, row.namespace_id, row.foyer_id, row.state, row.method,
+          row.source, row.last_seen_at, row.fingerprint, row.surface, row.external_id],
+      )) as UpdateQueryResponse;
+      if (updated.affectedRows > 0) return;
+      await mutate(
+        'INSERT INTO surface_seen (fingerprint, surface, external_id, label, namespace_id, foyer_id, state, method, source, first_seen_at, last_seen_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+        [row.fingerprint, row.surface, row.external_id, row.label, row.namespace_id,
+          row.foyer_id, row.state, row.method, row.source, row.first_seen_at,
+          row.last_seen_at],
+      );
+    },
+    async listByFingerprint(fingerprint) {
+      const rows = await select<SurfaceSeenRow>(
+        'SELECT * FROM surface_seen WHERE fingerprint = ? ORDER BY last_seen_at DESC',
+        [fingerprint],
+      );
+      return rows.map(surfaceSeenFromRow);
+    },
+    async listByFoyer(foyerId) {
+      const rows = await select<SurfaceSeenRow>(
+        'SELECT * FROM surface_seen WHERE foyer_id = ? ORDER BY last_seen_at DESC',
+        [foyerId],
+      );
+      return rows.map(surfaceSeenFromRow);
+    },
+    async listByLocation(surface, externalId) {
+      const rows = await select<SurfaceSeenRow>(
+        'SELECT * FROM surface_seen WHERE surface = ? AND external_id = ? ORDER BY last_seen_at DESC',
+        [surface, externalId],
+      );
+      return rows.map(surfaceSeenFromRow);
     },
   };
 }
@@ -451,7 +448,8 @@ export function createForgeStore(): ForgeStore {
     certificates: forgeCertificates(),
     cursors: forgeCursors(),
     budget: forgeBudget(),
-    giteCoverage: forgeGiteCoverage(),
+    giteCoverage: createGiteCoverageRepo(select, mutate),
+    giteScans: createGiteScansRepo(select, mutate),
     settings: forgeSettings(),
     async saveFoyer(foyer: Foyer) {
       await findings.upsert(foyer);

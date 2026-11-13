@@ -30,6 +30,7 @@ import {
 } from '../../forge-app/src/services/ritual-service';
 import type { ServiceContext } from '../../forge-app/src/services/ports';
 import { createMemoryStore } from '../../forge-app/src/store/memory-store';
+import { createMemorySurfaceRegistry, resolveNamespace } from '../../surfaces/src/index';
 
 import { SECRET_FIXTURES, fixturesDuGite } from './fixtures/index';
 import {
@@ -186,20 +187,17 @@ function oracleFactice(): LlmOracle {
   });
 }
 
-/** Le contexte de services, branché sur la mémoire : rien ne sort de la machine. */
-export function buildDemoContext(data: FixtureData): ServiceContext {
+/** Les ports factices de la démo : aucun appel réseau, aucun effet de bord. */
+function portsFactices(): Pick<
+  ServiceContext,
+  'storage' | 'ownerSource' | 'graph' | 'realtime' | 'jira' | 'access' | 'actor'
+> {
   return {
-    store: createMemoryStore(),
-    confluence: createFixtureClient(data),
-    hmacKey: HMAC_KEY,
-    clock: fixedClock(HORLOGE),
-    ids: sequenceIds(),
     storage: {
       async writeVersion() {
         return 3;
       },
     },
-    oracle: createCachedOracle(oracleFactice(), { hmacKey: HMAC_KEY }),
     ownerSource: {
       async declaredOwner() {
         return ACTEUR;
@@ -232,6 +230,24 @@ export function buildDemoContext(data: FixtureData): ServiceContext {
       },
     },
     actor: () => ({ kind: 'human', accountId: ACTEUR }),
+  };
+}
+
+/** Le contexte de services, branché sur la mémoire : rien ne sort de la machine. */
+export function buildDemoContext(data: FixtureData): ServiceContext {
+  return {
+    store: createMemoryStore(),
+    confluence: createFixtureClient(data),
+    hmacKey: HMAC_KEY,
+    // Le namespace d'empreinte de la démo : propre à l'installation, jamais
+    // partagé (PW-31) — la démo ne prétend pas comparer des empreintes.
+    namespace: resolveNamespace({ installationId: 'demo-space', source: 'absent' }),
+    // Le registre multi-surfaces : en mémoire, comme le store (PW-31).
+    surfaces: createMemorySurfaceRegistry(),
+    clock: fixedClock(HORLOGE),
+    ids: sequenceIds(),
+    oracle: createCachedOracle(oracleFactice(), { hmacKey: HMAC_KEY }),
+    ...portsFactices(),
   };
 }
 

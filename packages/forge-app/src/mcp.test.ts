@@ -158,7 +158,87 @@ describe('traceFingerprint — tous les emplacements d’une empreinte (§11)', 
     const ctx = makeTestContext();
     useCtx(ctx);
     const out = await traceFingerprint({ fingerprint: 'hmac256:0000000000000000' });
-    expect(out).toEqual({ fingerprint: 'hmac256:0000000000000000', locations: [] });
+    expect(out).toEqual({
+      fingerprint: 'hmac256:0000000000000000',
+      locations: [],
+      surfaces: [],
+      namespace: {
+        id: 'installation:installation-de-test',
+        shared: false,
+        caveat:
+          'Empreintes propres à cette installation : une autre surface ne produit la même ' +
+          'empreinte que si elle partage la clé du namespace (PW-31).',
+      },
+      comparison: {
+        comparable: false,
+        namespaces: [],
+        divergent: [],
+        message: 'aucune surface connue pour cette empreinte.',
+      },
+    });
+  });
+});
+
+describe('traceFingerprint — les surfaces externes aussi (PW-31)', () => {
+  it('rend le site ET les surfaces externes connues, avec méthode et source', async () => {
+    const ctx = makeTestContext({ confluence: multiGiteFixtureClient() });
+    useCtx(ctx);
+    const foyer = await seedFoyerBySweep(ctx, MULTI_PAGE_ID);
+    await ctx.surfaces.record({
+      fingerprint: foyer.fingerprint,
+      surface: 'git',
+      externalId: 'placard:config/env',
+      label: 'config/env',
+      namespaceId: ctx.namespace.id,
+      state: 'detecte',
+      method: 'scan-local',
+      source: 'git-cli',
+      firstSeenAt: '2026-11-11T10:00:00.000Z',
+      lastSeenAt: '2026-11-12T09:30:00.000Z',
+    });
+
+    const out = await traceFingerprint({ fingerprint: foyer.fingerprint }) as {
+      locations: TracedLocation[];
+      surfaces: Array<{ surface: string; method: string; source: string; externalId: string }>;
+      comparison: { comparable: boolean; message: string };
+    };
+    expect(out.surfaces.map((s) => s.surface).sort()).toEqual(['confluence', 'git']);
+    const git = out.surfaces.find((s) => s.surface === 'git');
+    expect(git?.method).toBe('scan-local');
+    expect(git?.source).toBe('git-cli');
+    expect(git?.externalId).toBe('placard:config/env');
+    expect(out.comparison.comparable).toBe(true);
+    expect(out.comparison.message).toContain('Git');
+    expect(JSON.stringify(out)).not.toContain(FAKE_CLOUD_KEY);
+  });
+
+  it('des namespaces différents : aucune correspondance, et le message le dit', async () => {
+    const ctx = makeTestContext({ confluence: multiGiteFixtureClient() });
+    useCtx(ctx);
+    const foyer = await seedFoyerBySweep(ctx, MULTI_PAGE_ID);
+    // Le même emplacement (la page), observé sous une autre empreinte — donc
+    // sous un autre namespace, donc avec une autre clé.
+    await ctx.surfaces.record({
+      fingerprint: 'hmac256:11111111111111111111111111111111',
+      surface: 'confluence',
+      externalId: MULTI_PAGE_ID,
+      label: `page ${MULTI_PAGE_ID}`,
+      namespaceId: 'atlassian:autre',
+      state: 'detecte',
+      method: 'scan-wiki',
+      source: 'forge-sql',
+      firstSeenAt: '2026-11-11T10:00:00.000Z',
+      lastSeenAt: '2026-11-11T10:00:00.000Z',
+    });
+
+    const out = await traceFingerprint({ fingerprint: foyer.fingerprint }) as {
+      surfaces: Array<{ surface: string }>;
+      comparison: { comparable: boolean; message: string; divergent: Array<{ reason: string }> };
+    };
+    expect(out.surfaces.map((s) => s.surface)).toEqual(['confluence']);
+    expect(out.comparison.comparable).toBe(true);
+    expect(out.comparison.divergent[0]?.reason).toBe('namespace-différent');
+    expect(out.comparison.message).toContain('divergent');
   });
 });
 

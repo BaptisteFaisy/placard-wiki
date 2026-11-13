@@ -19,8 +19,10 @@ import type {
   RitualStepState,
   ScanBudget,
   SweepCursor,
+  Gite,
 } from '@placard-wiki/domain';
 import type { OwnerResolution } from '@placard-wiki/domain';
+import type { GiteScanRecord, GiteScanRow } from './ports';
 import type {
   AttachmentScanRow,
   BudgetRow,
@@ -139,7 +141,7 @@ export function locationFromRow(row: LocationRow): FoyerLocation {
 }
 
 /** Règle du gîte (§6) — miroir minimal du domaine (la table ne stocke pas le gîte). */
-function giteImpl(containerType: string): string {
+function giteImpl(containerType: string): Gite {
   if (containerType === 'version') return 'historique-de-versions';
   if (containerType === 'comment') return 'commentaires';
   if (containerType === 'attachment') return 'pieces-jointes';
@@ -386,5 +388,29 @@ export function budgetFromRow(row: BudgetRow): ScanBudget {
     tokens: row.tokens,
     costEstimate: row.cost_estimate,
     skipped: [],
+  };
+}
+
+/** État de gîte → ligne `gite_scan` (des compteurs et une raison, rien d'autre). */
+export function giteScanToRow(record: GiteScanRecord): GiteScanRow {
+  return {
+    gite: record.gite,
+    pages_read: record.pagesRead,
+    pages_unread: record.pagesUnread,
+    pages_inaccessible: record.pagesInaccessible,
+    reason: record.reason,
+    pass_at: record.passAt,
+  };
+}
+
+/** Ligne `gite_scan` → état de gîte (un gîte inconnu reste tel quel :declared). */
+export function giteScanFromRow(row: GiteScanRow): GiteScanRecord {
+  return {
+    gite: row.gite as GiteScanRecord['gite'],
+    pagesRead: row.pages_read,
+    pagesUnread: row.pages_unread,
+    pagesInaccessible: row.pages_inaccessible,
+    reason: row.reason,
+    passAt: row.pass_at,
   };
 }

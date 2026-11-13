@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { useLang } from '../i18n.js';
 import { usePlacardData } from '../data/placard-data.js';
 import type { LiveReason } from '../lib/live.js';
+import { EXPECTED_CONTRACT_VERSION } from '../lib/contract.js';
 import type { DictKey } from '../i18n-dict.js';
 
 /** Raison d'un échec → clé de dictionnaire (bilingue, défaut anglais). */
@@ -17,6 +18,7 @@ const REASON_KEYS: Record<LiveReason, DictKey> = {
   network: 'liveReasonNetwork',
   http: 'liveReasonHttp',
   'invalid-shape': 'liveReasonInvalidShape',
+  'contract-mismatch': 'liveReasonContractMismatch',
 };
 
 /** Secondes écoulées depuis l'horodatage du balayage (null si illisible). */
@@ -67,6 +69,9 @@ export function LiveStatusBanner(): JSX.Element {
     text = `${t('liveBadge')} — ${site} ${dataset.siteName}, ${when}`;
   } else if (status === 'loading') {
     text = `${t('liveBadgeLoading')} — ${t('liveSnapshotNote')}`;
+  } else if (reason === 'contract-mismatch') {
+    // Cas particulier : l'API a répondu, mais plus dans la langue du contrat.
+    text = `${t('snapshotBadge')} — ${t('liveContractMismatch').replace('{version}', EXPECTED_CONTRACT_VERSION)}`;
   } else {
     const why = reasonKey ? t(reasonKey) : t('liveReasonUnknown');
     text = `${t('snapshotBadge')} — ${t('liveSnapshotNote')} (${t('liveSnapshotReason').replace('{reason}', why)})`;
