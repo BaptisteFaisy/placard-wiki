@@ -17,7 +17,7 @@
 ## Tester le produit sans rien installer (en dehors du chrono)
 
 **Site de démonstration public** :
-<https://baptistefaisy.github.io/placard-wiki/> — statique, données 100 %
+<https://tradoooo.github.io/placard-wiki/> — statique, données 100 %
 synthétiques (fixtures `demo-space`, §15), bilingue EN/FR, seize écrans : de
 quoi comprendre le produit en deux minutes, sans installation, sans site
 Confluence, sans identifiants. Réponse HTTP 200 vérifiée le 12 novembre 2026.
@@ -188,7 +188,7 @@ Vérifiables en quelques minutes, sur `main` :
 | Recette §25 | **10 couvertes, 8 partielles, 0 sans preuve** | [`RECETTE-25.md`](RECETTE-25.md) |
 | Contraintes plateforme | vérifiées par `forge lint` (0 erreur, CLI 15.1.0) | [`VALIDATION-22.md`](VALIDATION-22.md) |
 | Réemploi de `placard` | sous-module épinglé, commit `6664cfc` | `git submodule status` |
-| Site de démo | accessible (HTTP 200, vérifié le 12 novembre 2026) | <https://baptistefaisy.github.io/placard-wiki/> |
+| Site de démo | accessible (HTTP 200, vérifié le 12 novembre 2026) | <https://tradoooo.github.io/placard-wiki/> |
 
 Les huit recettes partielles butent toutes sur la même chose : la plateforme
 réelle (API Confluence, Realtime, deux comptes, journalisation réseau) ou un

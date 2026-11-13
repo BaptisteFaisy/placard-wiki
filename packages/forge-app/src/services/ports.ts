@@ -9,7 +9,9 @@
 
 import type { ConfluenceClient } from '@placard-wiki/wiki-source';
 import type { CachedOracle, LlmOracle } from '@placard-wiki/detectors';
-import type { ClockPort, IdPort, StoragePort } from '@placard-wiki/ritual';
+import type {
+  ClockPort, IdPort, PurgeClient, StoragePort, VersionReader,
+} from '@placard-wiki/ritual';
 import type { FingerprintNamespace, SurfaceRegistry } from '@placard-wiki/surfaces';
 import type {
   Foyer,
@@ -71,6 +73,20 @@ export interface ActorContext {
   kind: 'human' | 'agent';
 }
 
+/**
+ * Les ports de la purge (§9, étape 3). Absents = l'app n'a aucun moyen de
+ * purger ni de vérifier : elle produit alors la demande à l'administrateur.
+ * Le client vient du runtime Forge ; les tests fournissent des fakes.
+ */
+export interface PurgePorts {
+  /** Client capable de supprimer une version (sonde ses droits d'abord). */
+  client?: PurgeClient;
+  /** Lecteur des versions, pour la vérification « est-ce encore lisible ? ». */
+  reader?: VersionReader;
+  /** Empreinte d'un contenu (HMAC-SHA-256, clé de l'installation). */
+  fingerprint?: (content: string) => string;
+}
+
 /** Tout ce dont les services ont besoin, injecté par le runtime. */
 export interface ServiceContext {
   store: ForgeStore;
@@ -89,6 +105,8 @@ export interface ServiceContext {
   realtime: RealtimePort;
   jira: JiraPort;
   access: AccessPort;
+  /** Ports de la purge — absents quand l'app ne peut ni purger ni vérifier. */
+  purge?: PurgePorts;
   /** Acteur courant (humain/agent) — pour les gardes (§17). */
   actor(): ActorContext;
   /** Effectif total du site (plafond d'un partage public) — optionnel. */

@@ -118,6 +118,10 @@ export interface RitualStepRepo {
 export interface PurgeRequestRepo {
   listByFinding(findingId: string): Promise<PurgeRequest[]>;
   listPending(): Promise<PurgeRequest[]>;
+  /** Toutes les demandes, tous états confondus — pour l'export CSV. */
+  listAll(): Promise<PurgeRequest[]>;
+  /** Une demande par son identifiant — pour suivre la décision de l'administrateur. */
+  get(id: string): Promise<PurgeRequest | null>;
   put(request: PurgeRequest): Promise<void>;
   markState(id: string, state: PurgeRequest['state'], adminRef?: string): Promise<void>;
 }

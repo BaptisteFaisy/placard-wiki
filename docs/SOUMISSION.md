@@ -165,7 +165,7 @@ Nothing below is shipped yet — it is the roadmap, and it stays honest about wh
 ## Links
 
 - **Repository:** https://github.com/BaptisteFaisy/placard-wiki
-- **Live demo — no installation needed:** https://baptistefaisy.github.io/placard-wiki/ *(static, 100 % synthetic data, 16 screens, bilingual EN/FR)*
+- **Live demo — no installation needed:** https://tradoooo.github.io/placard-wiki/ *(static, 100 % synthetic data, 16 screens, bilingual EN/FR)*
 - **App installed on a real Confluence Cloud site** (our own demo instance, deployed v2.0.0 and installed on 12 November 2026): <https://one-atlas-cndz.atlassian.net/wiki/apps/dc47d23f-e4cd-4681-bb64-14ac02ea1c98/187530d6-48dd-414c-8215-ee19afe04033/placard> — with the seeded demo space <https://one-atlas-cndz.atlassian.net/wiki/spaces/PLACARDDEMO> (one fake secret per family in every hiding place, everything marked as synthetic; read access granted to judges on request)
 - **Marketplace installation link:** ⟨placeholder — the public Marketplace listing URL, provided by **Baptiste Faisy** in the Devpost submission once the listing goes out (submission for review from 16 December 2026). It does not exist yet and must never be invented; until then, the links above are enough to judge the product.⟩
 - **Demo credentials:** ⟨placeholder — the Confluence Cloud account that grants read access to the demo instance and to the `PLACARDDEMO` space, provided by **Baptiste Faisy** in the private field of the Devpost submission. It does not exist yet and must never be invented.⟩

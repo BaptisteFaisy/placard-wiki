@@ -76,6 +76,28 @@ function redactStepState(foyer: Foyer, unlocked: boolean): RitualStepState {
 }
 
 /**
+ * L'état de l'étape « purge » — la distinction est dans le code de statut :
+ * `done` quand la purge est **vérifiée**, `impossible` quand elle est
+ * **documentée comme impossible** (le foyer reste ouvert, §9).
+ */
+function purgeStepState(foyer: Foyer): RitualStepState['state'] {
+  if (foyer.state === 'purged' || foyer.state === 'sealed') return 'done';
+  if (foyer.state === 'purge-impossible') return 'impossible';
+  return 'pending';
+}
+
+/** La note de l'étape « purge » : jamais vide quand l'étape est impossible. */
+function purgeStepNote(foyer: Foyer): string | undefined {
+  if (foyer.state === 'purge-impossible') {
+    return 'La purge est impossible et documentée : l’historique reste lisible, le foyer reste ouvert.';
+  }
+  if (foyer.state === 'purged' || foyer.state === 'sealed') {
+    return 'La purge est vérifiée : la version visée n’est plus lisible.';
+  }
+  return undefined;
+}
+
+/**
  * Les cinq étapes du rituel dans l'ordre imposé (`RITUAL_STEPS`, domaine —
  * jamais redéfini ici), avec leurs verrous écrits.
  */
@@ -90,8 +112,8 @@ export function ritualStepStates(foyer: Foyer, attestation?: RotationAttestation
   const purge = step(
     foyer.id,
     'purge',
-    unlocked ? (foyer.state === 'purged' || foyer.state === 'sealed' ? 'done' : 'pending') : 'locked',
-    unlocked ? undefined : 'La purge suit le caviardage, qui suit la rotation attestée (§9).',
+    unlocked ? purgeStepState(foyer) : 'locked',
+    unlocked ? purgeStepNote(foyer) : 'La purge suit le caviardage, qui suit la rotation attestée (§9).',
   );
   return [
     rotate,

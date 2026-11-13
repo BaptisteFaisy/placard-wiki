@@ -310,6 +310,7 @@ export const DICT = {
   liveBadgeLoading: D('LIVE (loading…)', 'LIVE (chargement…)'),
   liveSiteLabel: D('real site', 'site réel'),
   liveScannedAgo: D('scanned {n} min ago', 'balayé il y a {n} min'),
+  liveScannedSecsAgo: D('scanned {n}s ago', 'balayé il y a {n} s'),
   liveScannedNow: D('scanned just now', 'balayé à l’instant'),
   liveScannedUnknown: D('scan time unknown', 'heure de balayage inconnue'),
   liveSnapshotNote: D('embedded data', 'données embarquées'),

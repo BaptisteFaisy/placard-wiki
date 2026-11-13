@@ -50,7 +50,7 @@ cible — voir `docs/ARCHITECTURE.md`).
 ## Voir le produit
 
 Tester sans rien installer : le site de démonstration public
-<https://baptistefaisy.github.io/placard-wiki/> montre le registre, le bâtiment,
+<https://tradoooo.github.io/placard-wiki/> montre le registre, le bâtiment,
 le rituel en démo locale et le certificat — données 100 % synthétiques.
 
 L'app Forge réelle (v2.0.0, `forge lint` 0 erreur, build/deploy/install
