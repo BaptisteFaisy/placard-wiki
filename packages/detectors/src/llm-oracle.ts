@@ -190,6 +190,60 @@ async function askWithState(
   }
 }
 
+/**
+ * Options du budget d'oracle (§14).
+ */
+export interface OracleBudgetOptions {
+  /** Nombre maximal d'appels au modèle pour une passe de balayage. */
+  maxCalls: number;
+  /**
+   * Délai maximal consacré au modèle pour une invocation (ms). Au-delà, le
+   * modèle n'est plus appelé — le candidat reste maintenu.
+   *
+   * Mesuré le 13 novembre 2026 : une passe en ligne dans un webtrigger
+   * (limite plateforme 55 s) a dépassé la limite, faute de budget temps : le
+   * relais répond en 2 à 13 s, parfois plus de 20 s, et 25 pages ambiguës
+   * s'additionnent. Le budget temps est donc la **seconde** dimension du
+   * budget : sans lui, le nombre d'appels ne suffit pas.
+   */
+  deadlineMs?: number;
+  /** Horloge injectable (tests). */
+  now?: () => number;
+}
+
+/**
+ * Oracle **borné** (§14) : passé le budget, le modèle n'est plus appelé.
+ *
+ * Mesuré le 13 novembre 2026 : une passe de 200 pages a déclenché 89 appels
+ * au modèle (le site de démo compte ~3 100 pages) — la passe durait 13
+ * minutes, mostly en attente du modèle, et le même travail était refait sur
+ * une seconde installation du site. Le budget borne le coût **et** la durée.
+ *
+ * Le candidat nonquestionné reste **maintenu** (comme quand l'oracle est
+ * indisponible) : on ne devine jamais qu'un candidat n'est pas un secret.
+ */
+export function createBudgetedOracle(oracle: LlmOracle, options: OracleBudgetOptions): LlmOracle {
+  const now = options.now ?? (() => Date.now());
+  const start = now();
+  let calls = 0;
+  const exhausted = (): boolean => {
+    if (calls >= options.maxCalls) return true;
+    if (options.deadlineMs === undefined) return false;
+    return now() - start >= options.deadlineMs;
+  };
+  return async (question: LlmOracleQuestion): Promise<LlmOracleVerdict> => {
+    if (exhausted()) {
+      return {
+        isSecret: true,
+        reasonFr: 'budget d’oracle atteint pour cette passe — candidat maintenu par prudence',
+        confidence: 0,
+      };
+    }
+    calls += 1;
+    return oracle(question);
+  };
+}
+
 export function createCachedOracle(oracle: LlmOracle, options: OracleCacheOptions): CachedOracle {
   const state: OracleCacheState = {
     maxEntries: options.maxEntries ?? 1000,

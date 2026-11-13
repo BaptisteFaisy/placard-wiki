@@ -99,6 +99,21 @@ si le relais est absent ou ne répond pas, elle retombe sur le LLM hébergé, sa
 jamais cacher le repli. La garde `network-guard.test.ts` verrouille l'hôte
 autorisé et le module du relais.
 
+**Le délai de l'app doit dépasser le délai amont du relais.** Le relais coupe
+l'appel à InferHub au bout de 25 s et répond **504** ; l'app, elle, attend
+30 s. Si l'app abandonnait avant, elle perdrait des verdicts alors que le
+relais allait répondre — mesuré le 13 novembre 2026 : 5 abandons sur 134
+appels, tous à 20,0 s pile. La règle est dans le code
+(`runtime/llm-relay.ts` : `RELAY_TIMEOUT_MS > RELAY_UPSTREAM_DEADLINE_MS`) et
+un test la verrouille.
+
+**Le budget d'oracle a deux dimensions : les appels et le temps** (§14). Un
+déclencheur planifié a 900 s et 20 appels par passe ; un webtrigger n'a que
+55 s et 3 appels. Au-delà, le modèle n'est plus appelé et le candidat reste
+**maintenu** (prudence) — jamais deviné. Sans ce budget, une passe en ligne de
+25 pages a dépassé la limite de la plateforme : la fonction est tuée et le
+webtrigger répond 424, sans journal d'erreur.
+
 ## 4. Flux : détection → foyer → exposition → rituel → certificat
 
 ```

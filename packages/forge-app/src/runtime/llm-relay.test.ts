@@ -14,7 +14,14 @@ const fetchMock = vi.fn();
 
 vi.mock('@forge/api', () => ({ fetch: (url: string, init?: unknown) => fetchMock(url, init) }));
 
-const { RELAY_TOKEN_VARIABLE, RELAY_URL_VARIABLE, askRelay, relayConfigured } = await import('./llm-relay.js');
+const {
+  RELAY_TIMEOUT_MS,
+  RELAY_UPSTREAM_DEADLINE_MS,
+  RELAY_TOKEN_VARIABLE,
+  RELAY_URL_VARIABLE,
+  askRelay,
+  relayConfigured,
+} = await import('./llm-relay.js');
 
 /** Une réponse OpenAI minimale. */
 function reponseOpenAI(contenu: string): { ok: boolean; status: number; json: () => Promise<unknown> } {
@@ -82,5 +89,33 @@ describe('relais LLM — appel', () => {
     poserVariables({ [RELAY_URL_VARIABLE]: 'https://r630-debian.tail3a8bdf.ts.net/placard-llm', [RELAY_TOKEN_VARIABLE]: 'jeton-service' });
     fetchMock.mockResolvedValue(reponseOpenAI(''));
     expect(await askRelay('système', 'question')).toBeNull();
+  });
+});
+
+describe('relais LLM — cohérence des délais', () => {
+  it('le délai de l’app dépasse le délai amont du relais', () => {
+    // Sinon l’app abandonne l’appel avant que le relais réponde : mesuré le
+    // 13 novembre 2026, 5 abandons sur 134 appels, tous à 20,0 s pile.
+    expect(RELAY_TIMEOUT_MS).toBeGreaterThan(RELAY_UPSTREAM_DEADLINE_MS);
+  });
+
+  it('le délai de l’app reste sous la limite d’une action Forge (55 s)', () => {
+    expect(RELAY_TIMEOUT_MS).toBeLessThan(55_000);
+  });
+
+  it('un relais muet est abandonné au délai de l’app, sans exception', async () => {
+    vi.useFakeTimers();
+    try {
+      poserVariables({ [RELAY_URL_VARIABLE]: 'https://r630-debian.tail3a8bdf.ts.net/placard-llm', [RELAY_TOKEN_VARIABLE]: 'jeton-service' });
+      fetchMock.mockImplementation((_url: string, init?: { signal?: AbortSignal }) => new Promise((_ok, ko) => {
+        init?.signal?.addEventListener('abort', () => ko(new DOMException('abandonné', 'AbortError')));
+      }));
+
+      const promesse = askRelay('système', 'question');
+      await vi.advanceTimersByTimeAsync(RELAY_TIMEOUT_MS + 10);
+      expect(await promesse).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

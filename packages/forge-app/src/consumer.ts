@@ -4,9 +4,8 @@
  * republie la tranche suivante tant que la passe n'est pas terminée.
  */
 
-import { Queue } from '@forge/events';
-
 import { getServiceContext } from './runtime/context';
+import { pushSweepEvent } from './runtime/queue';
 import { runSweep } from './services/index';
 
 interface ConsumeContext {
@@ -21,9 +20,6 @@ interface ConsumeContext {
   context?: Record<string, unknown>;
   accountId?: string;
 }
-
-/** File de balayage (§19 : module `consumer`, queue `pw-sweep-queue`). */
-const SWEEP_QUEUE = 'pw-sweep-queue';
 
 function str(payload: Record<string, unknown> | undefined, key: string, fallback: string): string {
   const value = payload?.[key];
@@ -40,14 +36,18 @@ function eventBody(event: ConsumeContext): Record<string, unknown> {
 /** Republie la tranche suivante si la passe n'est pas terminée (§14). */
 async function republishIfNeeded(mode: string, scope: string, cursor: string | null): Promise<void> {
   if (cursor === null) return;
-  try {
-    const queue = new Queue({ key: SWEEP_QUEUE });
-    await queue.push({ body: { mode, scope, cursor } });
-  } catch {
+  const mise = await pushSweepEvent({
+    mode: mode === 'full' || mode === 'on-demand' ? mode : 'incremental',
+    scope,
+    cursor,
+  });
+  if (!mise.ok) {
     // La file n'est pas disponible (déploiement sans consumer actif) : la
     // tranche est perdue, mais le curseur est persisté — la passe reprendra au
     // prochain déclencheur planifié. Déclaré, jamais masqué (§19).
-    console.info('[placard] consumer : republication impossible — curseur conservé, reprise au prochain passage.');
+    console.info(
+      `[placard] consumer : republication impossible (${mise.reason}) — curseur conservé, reprise au prochain passage.`,
+    );
   }
 }
 

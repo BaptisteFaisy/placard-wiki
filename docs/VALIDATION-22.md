@@ -15,23 +15,32 @@
 
 ## 1. Les 9 points à valider par prototype (§22)
 
+> **Colonne Statut mise à jour le 13 novembre 2026** — mesures sur le site réel
+> (`one-atlas-cndz.atlassian.net`, espace `PLACARDDEMO`), sonde
+> `tools/probe-confluence-api.mjs` (API admin, lecture seule) et journaux de
+> production de l'app (Forge `logs -e production`). Détail : §5 et §6.
+
 | # | Point | Pourquoi | Solution de repli | Statut |
 |---|---|---|---|---|
-| 1 | Supprimer une version précise d'une page depuis Forge | Fonde l'étape 3 du rituel (purger l'historique) | Demande groupée à l'administrateur (page, numéro de version, empreinte), exposition maintenue élevée, foyer **ouvert** | À valider — prototype semaine 1 |
-| 2 | Lire le binaire d'une pièce jointe, et jusqu'à quelle taille | Famille 12 (pièces jointes sensibles) | Nom, extension, taille : déclarées « non lues », angle mort affiché dans la couverture | À valider — prototype semaine 1 |
-| 3 | Extraire le texte d'un PDF/DOCX/XLSX dans le bundle Forge | Pièces jointes bureautiques (exports, captures de terminal) | Extensions à risque signalées, sans lecture de contenu | À valider — prototype semaine 1 |
-| 4 | État du partage « anyone with the link » lisible par API | Terme d'exposition +10 (§8) | Hypothèse conservatrice, affichée comme telle | À valider — prototype semaine 1 |
-| 5 | Realtime : cibler un utilisateur précis sur une page donnée | Bannière à l'auteur juste après publication (§9, étape 4) | Commentaire automatique sur la page + notification | À valider — prototype semaine 1 |
-| 6 | Whiteboards et bases Confluence accessibles | Couverture honnête (§6) | Angle mort **déclaré** dans l'écran de couverture — pas silently ignoré | À valider — prototype semaine 1 |
-| 7 | `asUser()` en écriture sur une page dont l'utilisateur n'est pas propriétaire | Qui peut caviarder (§9, étape 2) | Caviardage limité aux personnes ayant le droit d'édition | À valider — prototype semaine 1 |
-| 8 | Volume réel : 50 000 pages en une passe, temps et coût | Le budget de balayage (§14) | Tranches par espace, priorisation par exposition | À valider — prototype semaine 1 |
-| 9 | Résolution des groupes imbriqués pour compter les lecteurs | L'exposition chiffrée (§8) | Fourchette basse/haute assumée (« entre 340 et 1 200 personnes ») | À valider — prototype semaine 1 |
+| 1 | Supprimer une version précise d'une page depuis Forge | Fonde l'étape 3 du rituel (purger l'historique) | Demande groupée à l'administrateur (page, numéro de version, empreinte), exposition maintenue élevée, foyer **ouvert** | **Validé (v1 seulement)** — `DELETE /content/{id}/version/{n}` purge ; la version courante et les droits restent le repli |
+| 2 | Lire le binaire d'une pièce jointe, et jusqu'à quelle taille | Famille 12 (pièces jointes sensibles) | Nom, extension, taille : déclarées « non lues », angle mort affiché dans la couverture | **Validé pour le texte** — route `child/attachment/{id}/download`, octets = taille annoncée ; au-delà : « non lu, et pourquoi » |
+| 3 | Extraire le texte d'un PDF/DOCX/XLSX dans le bundle Forge | Pièces jointes bureautiques (exports, captures de terminal) | Extensions à risque signalées, sans lecture de contenu | **Repli nominal** — l'app lit le binaire, refuse le non-textuel et **déclare** l'angle mort (« extraction hors périmètre ») |
+| 4 | État du partage « anyone with the link » lisible par API | Terme d'exposition +10 (§8) | Hypothèse conservatrice, affichée comme telle | **Repli nominal** — l'API ne l'expose nulle part (ni contenu, ni réglages d'espace) : le terme reste une hypothèse affichée |
+| 5 | Realtime : cibler un utilisateur précis sur une page donnée | Bannière à l'auteur juste après publication (§9, étape 4) | Commentaire automatique sur la page + notification | **Ouvert** — runtime uniquement : le module Realtime existe (`runtime/realtime.ts`), mais aucun ciblage n'a été exercé sur le site |
+| 6 | Whiteboards et bases Confluence accessibles | Couverture honnête (§6) | Angle mort **déclaré** dans l'écran de couverture — pas silently ignoré | **Repli nominal** — `type=base` inconnu (400), `type=whiteboard` vide : angle mort réel, déclaré |
+| 7 | `asUser()` en écriture sur une page dont l'utilisateur n'est pas propriétaire | Qui peut caviarder (§9, étape 2) | Caviardage limité aux personnes ayant le droit d'édition | **Ouvert** — le chemin est écrit (`asUser` + `writeVersion`) mais le rituel n'a pas été joué sur le site : à exercised dans la semaine |
+| 8 | Volume réel : 50 000 pages en une passe, temps et coût | Le budget de balayage (§14) | Tranches par espace, priorisation par exposition | **Chiffré** — 200 pages ≈ 3 min avec l'oracle borné (89 appels, 13 min, sans budget) ; 50 000 pages ⇒ passage par tranches, jamais en une passe |
+| 9 | Résolution des groupes imbriqués pour compter les lecteurs | L'exposition chiffrée (§8) | Fourchette basse/haute assumée (« entre 340 et 1 200 personnes ») | **Repli nominal** — `GET /space/{key}/permission` = 405 : la fourchette reste la seule réponse honnête |
 
 Aucun de ces points ne bloque le démarrage : chacun a son repli, et chaque repli
 est un comportement produit assumé (déclaré à l'écran), pas une dégradation
 silencieuse. Le prototype de la semaine 1 les fait passer un par un à
 « validé » ou bascule le repli en comportement nominal — la colonne Statut est
 mise à jour dans cette page, pas dans un coin de tête.
+
+> Un point reste **ouvert** (5 et 7) : ce sont des comportements qui ne
+> s'exercent que dans l'interface, pas depuis une API. Ils ne sont pas
+> « validés par défaut » — ils sont en attente d'un usage réel.
 
 Note annexe : `app.id` n'est pas dans le manifeste tant que `forge create` n'a
 pas été exécuté sur l'app réelle — c'est attendu, pas un oubli.
@@ -295,7 +304,10 @@ empreintes sont des HMAC, et les **titres de page sont masqués eux aussi**
   Request en production, la chaîne de tranches ne s'enchaîne donc pas. La
   passe planifiée et la passe **en ligne** du webtrigger (`?sweep=1`, bornée à
   25 pages) couvrent le besoin ; le point d'accès de la file reste à
-  corriger (probablement le module `consumer` à redéclarer).
+  corriger (probablement le module `consumer` à redéclarer). **Depuis le
+  13 novembre 2026**, le refus n'est plus avalé (statut + message journalisés)
+  et la passe **continue en ligne** dans la même invocation quand la file
+  refuse — le balayage n'est plus bloqué sur la file.
 - **Passe complète du site** : le site de démo compte ~3 100 pages ; une passe
   complète dépasse le budget d'appels réseau d'une fonction. La validation porte
   donc sur l'espace `PLACARDDEMO` (16 pages), pas sur le site entier.
@@ -306,3 +318,32 @@ empreintes sont des HMAC, et les **titres de page sont masqués eux aussi**
   numérique, pas une clé) : la description d'espace est donc absente.
 - Les points §22 non encore traités (purge d'une version, Realtime ciblé,
   `asUser()` en écriture, groupes imbriqués) restent ouverts.
+
+## 7. Mesures du 13 novembre 2026 — ce que la production a-taught
+
+> Ces mesures viennent des **journaux de l'app en production** (Forge
+> `logs -e production`) et du **journal du relais** (r630). Elles ne sont pas
+> des déductions : ce sont des compteurs.
+
+| Constat | Mesure | Correctif |
+|---|---|---|
+| **L'app abandonnait l'appel au relais** avant que le relais réponde | 5 abandons sur 134 appels, tous à 20,0 s pile (le relais répondait en 2 à 13 s pour les autres) | délai de l'app 20 s → **30 s**, le relais répond **504** au bout de 25 s : le refus est explicite, plus un abandon muet |
+| **La file renvoyait 400 sans dire pourquoi** | `mise en file impossible — curseur conservé` (raison absente) | la raison est journalisée (statut + message) et la passe **continue en ligne** |
+| **L'oracle n'était pas borné** | 89 appels au modèle pour une passe de 200 pages, 13 min de passe | budget d'oracle : **20 appels et 600 s** par passe planifiée, **3 appels et 20 s** par webtrigger |
+| **La passe en ligne du webtrigger tuait la fonction** | `?sweep=1` → **HTTP 424** après 57 s (limite plateforme 55 s), sans journal d'erreur | budget d'oracle du webtrigger : la passe est finie en **39,9 s** (16 pages, 55 foyers), HTTP 200 |
+| **La seconde installation (Jira) rebalaye le site** | même site, clé HMAC propre à l'installation : le registre existe en double, et le balayage est refait | **non corrigé** — à trancher : désinstaller l'app de Jira (aucun module Jira n'est déclaré) ou ne déclencher le balayage que là où un espace Confluence existe |
+
+### Pièges de cette journée
+
+1. **`forge build` refuse les variables d'environnement** du manifeste
+   (« Manifest environment variables are not supported for builds »), alors que
+   `forge deploy` les accepte. Le build se fait par `forge deploy`.
+2. **`forge lint` signale une approbation de version majeure** quand la sortie
+   réseau change (« Change due to data residency or egress modification ») :
+   c'est le passage de version 3 à 4 qui l'a déclenché le 13 novembre.
+3. **`forge logs --since "-10m"` ne renvoie rien** : le format relatif n'est pas
+   accepté dans cette version. Utiliser un horodatage ISO
+   (`--since 2026-11-13T22:45:00Z`).
+4. **Une fonction tuée par la plateforme ne journalise rien** : le 424 du
+   webtrigger n'apparaît nulle part dans les journaux. Une absence de log après
+   une entrée « je commence » est un indice de mort de la fonction.
