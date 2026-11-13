@@ -91,6 +91,17 @@ Vérifier la jambe modèle : `python3 .github/hermes/sonde.py --selftest`
 (hors ligne) puis `python3 .github/hermes/sonde.py` (sonde vivante, aucun secret
 imprimé) — ou le workflow `hermes-probe`. Détail : [`docs/HERMES.md`](docs/HERMES.md).
 
+## La jambe modèle de l'app (l'oracle)
+
+L'oracle de l'app (le juge des candidats ambigus) parle à **InferHub**
+(`combo/cheap`) lui aussi, mais **par un relais** : Forge n'accepte en sortie
+externe que de l'authentification `oauth2`, et la clé d'InferHub est une clé
+statique `sk-…`. Le relais (r630) garde la clé, l'app Forge lui parle en HTTPS
+avec un jeton de service (variable Forge, hors du dépôt) et n'a le droit de
+sortir que vers cet hôte — la garde réseau du dépôt le verrouille. Si le relais
+ne répond pas, l'app retombe sur le LLM hébergé de Forge, et le dit. Détail :
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §3.
+
 ## Documentation
 
 - `docs/ARCHITECTURE.md` — chaînes de traitement, limites Forge, réemploi de `placard`
